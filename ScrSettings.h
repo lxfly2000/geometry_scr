@@ -35,6 +35,7 @@ public:
 	unsigned windowHeight;//窗口模式时高度
 	unsigned minFalldownSpeed;//图形在水平方向落下的最小速度
 	unsigned colorTransMaxSpeed;//颜色变化的最大速度
+	int randSeed;//设置随机数种子，0=使用当前时间
 	//设置日期时间的显示格式，分别为是否显示年，日期，时间，秒，星期
 	void SetScrTimeFormat(BOOL, BOOL, BOOL, BOOL, BOOL);
 	//获取日期时间的显示格式，0=全部（按位），1-5分别为是否显示年，日期，时间，秒，星期

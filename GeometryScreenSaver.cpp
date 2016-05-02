@@ -48,8 +48,13 @@ int GeometryScreenSaver::Run()
 	SetOutApplicationLogValidFlag(FALSE);
 #endif
 	ZeroMemory(countOfShapes, sizeof(countOfShapes));
-	SRand((int)time(NULL));
 	LoadSettingsFromFile();
+	if (settings.randSeed == 0)
+	{
+		settings.randSeed = (int)time(NULL);
+		SetWindowText(GetStringOfValue(settings.randSeed));
+	}
+	SRand(settings.randSeed);
 
 	dm.dmSize = sizeof(DEVMODE);
 	EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm);

@@ -81,6 +81,7 @@ void ScrSettings::SaveScrSettingsToFile(wchar_t *filename, wchar_t *appname)
 	WritePrivateProfileString(appname, TEXT(VAR_TO_STRING(minRotateSpeed)), ntostr(minRotateSpeed, stringbuf), filename);
 	WritePrivateProfileString(appname, TEXT(VAR_TO_STRING(windowWidth)), ntostr(windowWidth, stringbuf), filename);
 	WritePrivateProfileString(appname, TEXT(VAR_TO_STRING(windowHeight)), ntostr(windowHeight, stringbuf), filename);
+	WritePrivateProfileString(appname, TEXT(VAR_TO_STRING(randSeed)), ntostr(randSeed, stringbuf), filename);
 }
 
 void ScrSettings::LoadDefaultScrSettings()
@@ -113,6 +114,7 @@ void ScrSettings::LoadDefaultScrSettings()
 	timeFontThickness = 4;
 	minFalldownSpeed = 1;
 	colorTransMaxSpeed = 1;
+	randSeed = 0;
 }
 
 void ScrSettings::GetScrSettingsFromFile(wchar_t *filename, wchar_t *appname)
@@ -149,6 +151,7 @@ void ScrSettings::GetScrSettingsFromFile(wchar_t *filename, wchar_t *appname)
 	windowHeight = GetPrivateProfileInt(appname, TEXT(VAR_TO_STRING(windowHeight)), windowHeight, filename);
 	timeFontThickness = GetPrivateProfileInt(appname, TEXT(VAR_TO_STRING(timeFontThickness)), timeFontThickness, filename);
 	colorTransMaxSpeed = GetPrivateProfileInt(appname, TEXT(VAR_TO_STRING(colorTransMaxSpeed)), colorTransMaxSpeed, filename);
+	randSeed = GetPrivateProfileInt(appname, TEXT(VAR_TO_STRING(randSeed)), randSeed, filename);
 }
 
 wchar_t * ScrSettings::ntostr(int source, wchar_t *buf, bool inhex)
