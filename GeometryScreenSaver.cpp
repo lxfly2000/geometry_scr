@@ -382,8 +382,8 @@ void GeometryScreenSaver::ConfigureDialogControl()
 	SendMessage(GetDlgItem(hDialog, IDC_SPIN_TIMEPOSX), UDM_SETRANGE32, 0, 100);
 	SendMessage(GetDlgItem(hDialog, IDC_SPIN_TIMEPOSY), UDM_SETRANGE32, 0, 100);
 	SendMessage(GetDlgItem(hDialog, IDC_SPIN_BORDERWIDTH), UDM_SETRANGE32, -1, 100);
-	SendMessage(GetDlgItem(hDialog, IDC_SPIN_MINRADIUS), UDM_SETRANGE32, 0, 1000);
-	SendMessage(GetDlgItem(hDialog, IDC_SPIN_MAXRADIUS), UDM_SETRANGE32, 0, 1000);
+	SendMessage(GetDlgItem(hDialog, IDC_SPIN_MINRADIUS), UDM_SETRANGE32, 0, 999);
+	SendMessage(GetDlgItem(hDialog, IDC_SPIN_MAXRADIUS), UDM_SETRANGE32, 0, 999);
 	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_PURECOLORBORDER_ALPHA), TBM_SETRANGE, FALSE, MAKELPARAM(0, 255));
 	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_BACKGROUNDCOLOR_ALPHA), TBM_SETRANGE, FALSE, MAKELPARAM(0, 255));
 	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_TIMECOLOR_ALPHA), TBM_SETRANGE, FALSE, MAKELPARAM(0, 255));
