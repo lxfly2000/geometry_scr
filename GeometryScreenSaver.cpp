@@ -120,14 +120,14 @@ void GeometryScreenSaver::LoadSourceFromFiles()
 	{
 		if (settings.fitBorder)
 		{
-			if (dm.dmPelsHeight / dm.dmPelsWidth > (unsigned)(bgRight / bgBottom))
+			if ((float)dm.dmPelsHeight / dm.dmPelsWidth > (float)bgBottom / bgRight)//½Ï¿íÍ¼
 			{
 				bgLeft = 0;
 				bgTop = (dm.dmPelsHeight - dm.dmPelsWidth*bgBottom / bgRight) / 2;
 				bgRight = dm.dmPelsWidth;
 				bgBottom = dm.dmPelsHeight - bgTop;
 			}
-			else
+			else//½Ï¸ßÍ¼
 			{
 				bgTop = 0;
 				bgLeft = (dm.dmPelsWidth - dm.dmPelsHeight*bgRight / bgBottom) / 2;
@@ -149,7 +149,7 @@ void GeometryScreenSaver::LoadSourceFromFiles()
 	{
 		if (settings.fitBorder)
 		{
-			if (settings.windowHeight / settings.windowWidth > (unsigned)(bgRight / bgBottom))
+			if ((float)settings.windowHeight / settings.windowWidth > (float)bgBottom / bgRight)
 			{
 				bgLeft = 0;
 				bgTop = (settings.windowHeight - settings.windowWidth*bgBottom / bgRight) / 2;
