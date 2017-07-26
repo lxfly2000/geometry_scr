@@ -1,6 +1,6 @@
 ﻿#include <tchar.h>
 #include "GeometryScreenSaver.h"
-#include "E:\Codes\UseVisualStyle.h"
+#include "UseVisualStyle.h"
 // WinMain関数
 int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE hPvI, LPTSTR lpCmdLine, int nCmdShow)
 {
