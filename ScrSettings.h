@@ -11,6 +11,10 @@ public:
 	UINT backgroundColor;//背景清除颜色，0xAABBGGRR
 	wchar_t backgroundSplash[MAX_PATH];//背景图文件名
 	BOOL fitBorder;//背景图是否缩放至屏幕边界
+	UINT coverColor;//覆盖层颜色，0xAABBGGRR
+	wchar_t coverSplash[MAX_PATH];//覆盖层图文件名
+	BOOL coverFitBorder;//覆盖层是否缩放至屏幕边界
+	BOOL enableCoverLayer;//是否启用覆盖层
 	unsigned maxFalldownSpeed;//图形在垂直方向落下的最大速度
 	unsigned maxHorizonalSpeed;//图形在水平方向落下的最大速度
 	unsigned maxNTriangle;//三角形的最大数量

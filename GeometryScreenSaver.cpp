@@ -72,7 +72,10 @@ int GeometryScreenSaver::Run()
 	{
 		// x , y が示す画面座標にＢＭＰ画像 test1.bmp を描画する
 		DrawBackgroundSplash();
-		DrawShapes();
+		if (settings.enableCoverLayer)
+			DrawCoverLayer();
+		else
+			DrawShapes(false);
 		DrawDateTime();
 
 		// 裏画面の内容を表画面に反映させる
@@ -100,7 +103,7 @@ int GeometryScreenSaver::Run()
 		ShapesAct();
 	}
 	for (int i = (int)shapes.size() - 1; i >= 0; i--)
-		delete shapes.at(i);
+		delete shapes[i];
 	shapes.clear();
 
 	// ＤＸライブラリ使用の終了処理
@@ -110,76 +113,69 @@ int GeometryScreenSaver::Run()
 	return 0;
 }
 
+void GeometryScreenSaver::FitBorderRect(int borderW, int borderH, int imageW, int imageH, int*l, int*t, int*r, int*b)
+{
+	if ((float)borderH / borderW > (float)imageH / imageW)//较宽图
+	{
+		*l = 0;
+		*t = (borderH - borderW*imageH / imageW) / 2;
+		*r = borderW;
+		*b = borderH - *t;
+	}
+	else//较高图
+	{
+		*t = 0;
+		*l = (borderW - borderH*imageW / imageH) / 2;
+		*b = borderH;
+		*r = borderW - *l;
+	}
+}
+
 void GeometryScreenSaver::LoadSourceFromFiles()
 {
+	GetDrawScreenSize(&screenWidth, &screenHeight);
 	dxBackgroundImage = LoadGraph(settings.backgroundSplash);
 	GetGraphSize(dxBackgroundImage, &bgRight, &bgBottom);
 	if (!bgRight)bgRight = 1;
 	if (!bgBottom)bgBottom = 1;
-	if (fullscreen)
-	{
-		if (settings.fitBorder)
-		{
-			if ((float)dm.dmPelsHeight / dm.dmPelsWidth > (float)bgBottom / bgRight)//较宽图
-			{
-				bgLeft = 0;
-				bgTop = (dm.dmPelsHeight - dm.dmPelsWidth*bgBottom / bgRight) / 2;
-				bgRight = dm.dmPelsWidth;
-				bgBottom = dm.dmPelsHeight - bgTop;
-			}
-			else//较高图
-			{
-				bgTop = 0;
-				bgLeft = (dm.dmPelsWidth - dm.dmPelsHeight*bgRight / bgBottom) / 2;
-				bgBottom = dm.dmPelsHeight;
-				bgRight = dm.dmPelsWidth - bgLeft;
-			}
-		}
-		else
-		{
-			bgLeft = (dm.dmPelsWidth - bgRight) / 2;
-			bgTop = (dm.dmPelsHeight - bgBottom) / 2;
-			bgRight += bgLeft;
-			bgBottom += bgTop;
-		}
-		timeX = dm.dmPelsWidth*settings.timePosX / 100;
-		timeY = dm.dmPelsHeight*settings.timePosY / 100;
-	}
+	if (settings.fitBorder)
+		FitBorderRect(screenWidth, screenHeight, bgRight, bgBottom, &bgLeft, &bgTop, &bgRight, &bgBottom);
 	else
 	{
-		if (settings.fitBorder)
-		{
-			if ((float)settings.windowHeight / settings.windowWidth > (float)bgBottom / bgRight)
-			{
-				bgLeft = 0;
-				bgTop = (settings.windowHeight - settings.windowWidth*bgBottom / bgRight) / 2;
-				bgRight = settings.windowWidth;
-				bgBottom = settings.windowHeight - bgTop;
-			}
-			else
-			{
-				bgTop = 0;
-				bgLeft = (settings.windowWidth - settings.windowHeight*bgRight / bgBottom) / 2;
-				bgBottom = settings.windowHeight;
-				bgRight = settings.windowWidth - bgLeft;
-			}
-		}
-		else
-		{
-			bgLeft = (settings.windowWidth - bgRight) / 2;
-			bgTop = (settings.windowHeight - bgBottom) / 2;
-			bgRight += bgLeft;
-			bgBottom += bgTop;
-		}
-		timeX = settings.windowWidth*settings.timePosX / 100;
-		timeY = settings.windowHeight*settings.timePosY / 100;
+		bgLeft = (screenWidth - bgRight) / 2;
+		bgTop = (screenHeight - bgBottom) / 2;
+		bgRight += bgLeft;
+		bgBottom += bgTop;
 	}
+	timeX = screenWidth*settings.timePosX / 100;
+	timeY = screenHeight*settings.timePosY / 100;
 	SetBackgroundColor(settings.backgroundColor & 0x000000FF, (settings.backgroundColor & 0x0000FF00) >> 8,
 		(settings.backgroundColor & 0x00FF0000) >> 16);
 	SetFontSize(settings.timeFontSize);
 	SetFontThickness(settings.timeFontThickness);
 	ChangeFont(settings.timeFontName);
 	ChangeFontType(DX_FONTTYPE_ANTIALIASING);
+	if (settings.enableCoverLayer)
+	{
+		SetMaskReverseEffectFlag(TRUE);
+		hScreenCover = MakeScreen(screenWidth, screenHeight, TRUE);
+		SetMaskScreenGraph(hScreenCover);
+		dxCoverImage = LoadGraph(settings.coverSplash);
+		GetGraphSize(dxCoverImage, &bgCoverRight, &bgCoverBottom);
+		if (!bgCoverRight)bgCoverRight = 1;
+		if (!bgCoverBottom)bgCoverBottom = 1;
+		if (settings.coverFitBorder)
+			FitBorderRect(screenWidth, screenHeight, bgCoverRight, bgCoverBottom, &bgCoverLeft, &bgCoverTop, &bgCoverRight, &bgCoverBottom);
+		else
+		{
+			bgCoverLeft = (screenWidth - bgCoverRight) / 2;
+			bgCoverTop = (screenHeight - bgCoverBottom) / 2;
+			bgCoverRight += bgCoverLeft;
+			bgCoverBottom += bgCoverTop;
+		}
+		hImgWhiteFill = MakeGraph(screenWidth, screenHeight);
+		FillGraph(hImgWhiteFill, 255, 255, 255);
+	}
 }
 
 void GeometryScreenSaver::DrawBackgroundSplash()
@@ -225,113 +221,91 @@ void GeometryScreenSaver::DrawDateTime()
 		(settings.timeColor & 0x00FF0000) >> 16), timeFormatString.c_str());
 }
 
-void GeometryScreenSaver::DrawShapes()
+void GeometryScreenSaver::DrawTrianglePolygon(int cx, int cy, int radius, int rot_deg, int r, int g, int b, int num, int thick)
+{
+	for (int i = 0; i < num; i++)
+	{
+		vbuffer[i].x = (int)(radius*sin(DegToRad(rot_deg + 360 * i / num)) + cx);
+		vbuffer[i].y = (int)(radius*cos(DegToRad(rot_deg + 360 * i / num)) + cy);
+	}
+	if (thick)
+		for (int i = 0; i < num; i++)
+			DrawLine(vbuffer[i].x, vbuffer[i].y, vbuffer[(i + 1) % num].x, vbuffer[(i + 1) % num].y, GetColor(r, g, b), thick);
+	else
+		for (int i = 2; i < num; i++)
+			DrawTriangle(vbuffer[0].x, vbuffer[0].y, vbuffer[i - 1].x, vbuffer[i - 1].y, vbuffer[i].x, vbuffer[i].y,
+				GetColor(r, g, b), TRUE);
+}
+
+void GeometryScreenSaver::DrawShapes(bool fill)
 {
 	for (int i = (int)shapes.size() - 1; i >= 0; i--)
-		switch (shapes.at(i)->polygons)
+		switch (shapes[i]->polygons)
 		{
-		case 0://圆
-			DrawCircle(shapes.at(i)->x, shapes.at(i)->y, shapes.at(i)->radius, GetColor(shapes.at(i)->color[0],
-				shapes.at(i)->color[1], shapes.at(i)->color[2]), 0, settings.borderWidth);
+		case 0:
+			if (fill)
+				DrawCircle(shapes[i]->x, shapes[i]->y, shapes[i]->radius, 0xFFFFFFFF, TRUE);
+			else
+				DrawCircle(shapes[i]->x, shapes[i]->y, shapes[i]->radius, GetColor(shapes[i]->color[0],
+					shapes[i]->color[1], shapes[i]->color[2]), 0, settings.borderWidth);
 			break;
-		case 1://三角形
-			DrawTriangle((int)(shapes.at(i)->radius*sin(DegToRad(shapes.at(i)->angle)) + shapes.at(i)->x),
-				(int)(shapes.at(i)->radius*cos(DegToRad(shapes.at(i)->angle)) + shapes.at(i)->y),
-				(int)(shapes.at(i)->radius*sin(DegToRad(shapes.at(i)->angle + 120)) + shapes.at(i)->x),
-				(int)(shapes.at(i)->radius*cos(DegToRad(shapes.at(i)->angle + 120)) + shapes.at(i)->y),
-				(int)(shapes.at(i)->radius*sin(DegToRad(shapes.at(i)->angle + 240)) + shapes.at(i)->x),
-				(int)(shapes.at(i)->radius*cos(DegToRad(shapes.at(i)->angle + 240)) + shapes.at(i)->y),
-				GetColor(shapes.at(i)->color[0], shapes.at(i)->color[1], shapes.at(i)->color[2]), 0);
-			break;
-		case 2://正方形
-			DrawLine((int)(shapes.at(i)->radius*sin(DegToRad(shapes.at(i)->angle)) + shapes.at(i)->x),
-				(int)(shapes.at(i)->radius*cos(DegToRad(shapes.at(i)->angle)) + shapes.at(i)->y),
-				(int)(shapes.at(i)->radius*sin(DegToRad(shapes.at(i)->angle + 90)) + shapes.at(i)->x),
-				(int)(shapes.at(i)->radius*cos(DegToRad(shapes.at(i)->angle + 90)) + shapes.at(i)->y),
-				GetColor(shapes.at(i)->color[0], shapes.at(i)->color[1], shapes.at(i)->color[2]), settings.borderWidth);
-			DrawLine((int)(shapes.at(i)->radius*sin(DegToRad(shapes.at(i)->angle + 90)) + shapes.at(i)->x),
-				(int)(shapes.at(i)->radius*cos(DegToRad(shapes.at(i)->angle + 90)) + shapes.at(i)->y),
-				(int)(shapes.at(i)->radius*sin(DegToRad(shapes.at(i)->angle + 180)) + shapes.at(i)->x),
-				(int)(shapes.at(i)->radius*cos(DegToRad(shapes.at(i)->angle + 180)) + shapes.at(i)->y),
-				GetColor(shapes.at(i)->color[0], shapes.at(i)->color[1], shapes.at(i)->color[2]), settings.borderWidth);
-			DrawLine((int)(shapes.at(i)->radius*sin(DegToRad(shapes.at(i)->angle + 180)) + shapes.at(i)->x),
-				(int)(shapes.at(i)->radius*cos(DegToRad(shapes.at(i)->angle + 180)) + shapes.at(i)->y),
-				(int)(shapes.at(i)->radius*sin(DegToRad(shapes.at(i)->angle + 270)) + shapes.at(i)->x),
-				(int)(shapes.at(i)->radius*cos(DegToRad(shapes.at(i)->angle + 270)) + shapes.at(i)->y),
-				GetColor(shapes.at(i)->color[0], shapes.at(i)->color[1], shapes.at(i)->color[2]), settings.borderWidth);
-			DrawLine((int)(shapes.at(i)->radius*sin(DegToRad(shapes.at(i)->angle + 270)) + shapes.at(i)->x),
-				(int)(shapes.at(i)->radius*cos(DegToRad(shapes.at(i)->angle + 270)) + shapes.at(i)->y),
-				(int)(shapes.at(i)->radius*sin(DegToRad(shapes.at(i)->angle)) + shapes.at(i)->x),
-				(int)(shapes.at(i)->radius*cos(DegToRad(shapes.at(i)->angle)) + shapes.at(i)->y),
-				GetColor(shapes.at(i)->color[0], shapes.at(i)->color[1], shapes.at(i)->color[2]), settings.borderWidth);
-			break;
-		case 3://五边形
-			DrawLine((int)(shapes.at(i)->radius*sin(DegToRad(shapes.at(i)->angle)) + shapes.at(i)->x),
-				(int)(shapes.at(i)->radius*cos(DegToRad(shapes.at(i)->angle)) + shapes.at(i)->y),
-				(int)(shapes.at(i)->radius*sin(DegToRad(shapes.at(i)->angle + 72)) + shapes.at(i)->x),
-				(int)(shapes.at(i)->radius*cos(DegToRad(shapes.at(i)->angle + 72)) + shapes.at(i)->y),
-				GetColor(shapes.at(i)->color[0], shapes.at(i)->color[1], shapes.at(i)->color[2]), settings.borderWidth);
-			DrawLine((int)(shapes.at(i)->radius*sin(DegToRad(shapes.at(i)->angle + 72)) + shapes.at(i)->x),
-				(int)(shapes.at(i)->radius*cos(DegToRad(shapes.at(i)->angle + 72)) + shapes.at(i)->y),
-				(int)(shapes.at(i)->radius*sin(DegToRad(shapes.at(i)->angle + 144)) + shapes.at(i)->x),
-				(int)(shapes.at(i)->radius*cos(DegToRad(shapes.at(i)->angle + 144)) + shapes.at(i)->y),
-				GetColor(shapes.at(i)->color[0], shapes.at(i)->color[1], shapes.at(i)->color[2]), settings.borderWidth);
-			DrawLine((int)(shapes.at(i)->radius*sin(DegToRad(shapes.at(i)->angle + 144)) + shapes.at(i)->x),
-				(int)(shapes.at(i)->radius*cos(DegToRad(shapes.at(i)->angle + 144)) + shapes.at(i)->y),
-				(int)(shapes.at(i)->radius*sin(DegToRad(shapes.at(i)->angle + 216)) + shapes.at(i)->x),
-				(int)(shapes.at(i)->radius*cos(DegToRad(shapes.at(i)->angle + 216)) + shapes.at(i)->y),
-				GetColor(shapes.at(i)->color[0], shapes.at(i)->color[1], shapes.at(i)->color[2]), settings.borderWidth);
-			DrawLine((int)(shapes.at(i)->radius*sin(DegToRad(shapes.at(i)->angle + 216)) + shapes.at(i)->x),
-				(int)(shapes.at(i)->radius*cos(DegToRad(shapes.at(i)->angle + 216)) + shapes.at(i)->y),
-				(int)(shapes.at(i)->radius*sin(DegToRad(shapes.at(i)->angle + 288)) + shapes.at(i)->x),
-				(int)(shapes.at(i)->radius*cos(DegToRad(shapes.at(i)->angle + 288)) + shapes.at(i)->y),
-				GetColor(shapes.at(i)->color[0], shapes.at(i)->color[1], shapes.at(i)->color[2]), settings.borderWidth);
-			DrawLine((int)(shapes.at(i)->radius*sin(DegToRad(shapes.at(i)->angle + 288)) + shapes.at(i)->x),
-				(int)(shapes.at(i)->radius*cos(DegToRad(shapes.at(i)->angle + 288)) + shapes.at(i)->y),
-				(int)(shapes.at(i)->radius*sin(DegToRad(shapes.at(i)->angle)) + shapes.at(i)->x),
-				(int)(shapes.at(i)->radius*cos(DegToRad(shapes.at(i)->angle)) + shapes.at(i)->y),
-				GetColor(shapes.at(i)->color[0], shapes.at(i)->color[1], shapes.at(i)->color[2]), settings.borderWidth);
+		default:
+			DrawTrianglePolygon(shapes[i]->x, shapes[i]->y, shapes[i]->radius, shapes[i]->angle, shapes[i]->color[0],
+				shapes[i]->color[1], shapes[i]->color[2], shapes[i]->polygons + 2, fill ? 0 : settings.borderWidth);
 			break;
 		}
+}
+
+void GeometryScreenSaver::DrawCoverLayer()
+{
+	SetDrawScreen(hScreenCover);
+	ClearDrawScreen();
+	DrawShapes(true);
+	SetDrawScreen(DX_SCREEN_BACK);
+	CreateMaskScreen();
+	DrawBox(0, 0, screenWidth, screenHeight, settings.coverColor, TRUE);
+	if (dxCoverImage != -1)
+		DrawExtendGraph(bgCoverLeft, bgCoverTop, bgCoverRight, bgCoverBottom, dxCoverImage, TRUE);
+	DeleteMaskScreen();
 }
 
 void GeometryScreenSaver::ShapesAct()
 {
 	for (int i = (int)shapes.size() - 1; i >= 0; i--)
 	{
-		shapes.at(i)->x += shapes.at(i)->vx;
-		shapes.at(i)->y += shapes.at(i)->vy;
-		shapes.at(i)->angle += shapes.at(i)->vrotate;
+		shapes[i]->x += shapes[i]->vx;
+		shapes[i]->y += shapes[i]->vy;
+		shapes[i]->angle += shapes[i]->vrotate;
 		if (settings.transformingColor)
 		{
-			if (shapes.at(i)->crF2)//增/减
+			if (shapes[i]->crF2)//增/减
 			{
-				if (shapes.at(i)->color[shapes.at(i)->crF3 % 3u] < shapes.at(i)->crTransSpeed)//到底端
+				if (shapes[i]->color[shapes[i]->crF3 % 3u] < shapes[i]->crTransSpeed)//到底端
 				{
-					shapes.at(i)->crF1 ? shapes.at(i)->crF3++ : shapes.at(i)->crF3--;
-					shapes.at(i)->crF2 = false;
+					shapes[i]->crF1 ? shapes[i]->crF3++ : shapes[i]->crF3--;
+					shapes[i]->crF2 = false;
 				}
-				else shapes.at(i)->color[shapes.at(i)->crF3 % 3u] -= shapes.at(i)->crTransSpeed;
+				else shapes[i]->color[shapes[i]->crF3 % 3u] -= shapes[i]->crTransSpeed;
 			}
 			else
 			{
-				if (shapes.at(i)->color[shapes.at(i)->crF3 % 3u] > 255 - shapes.at(i)->crTransSpeed)//到顶端
+				if (shapes[i]->color[shapes[i]->crF3 % 3u] > 255 - shapes[i]->crTransSpeed)//到顶端
 				{
-					shapes.at(i)->crF1 ? shapes.at(i)->crF3++ : shapes.at(i)->crF3--;
-					shapes.at(i)->crF2 = true;
+					shapes[i]->crF1 ? shapes[i]->crF3++ : shapes[i]->crF3--;
+					shapes[i]->crF2 = true;
 				}
-				else shapes.at(i)->color[shapes.at(i)->crF3 % 3u] += shapes.at(i)->crTransSpeed;
+				else shapes[i]->color[shapes[i]->crF3 % 3u] += shapes[i]->crTransSpeed;
 			}
 		}
-		if (shapes.at(i)->y - (int)settings.maxRadius > (int)(fullscreen ? dm.dmPelsHeight : settings.windowHeight))
+		if (shapes[i]->y - (int)settings.maxRadius > (int)(fullscreen ? dm.dmPelsHeight : settings.windowHeight))
 		{
-			countOfShapes[shapes.at(i)->polygons]--;
-			delete shapes.at(i);
+			countOfShapes[shapes[i]->polygons]--;
+			delete shapes[i];
 			shapes.erase(shapes.begin() + i);
 		}
-		else if ((shapes.at(i)->x < 0 && shapes.at(i)->vx < 0) ||
-			((unsigned)shapes.at(i)->x>(fullscreen ? dm.dmPelsWidth : settings.windowWidth) && shapes.at(i)->vx>0))
-			shapes.at(i)->vx = -shapes.at(i)->vx;
+		else if ((shapes[i]->x < 0 && shapes[i]->vx < 0) ||
+			((unsigned)shapes[i]->x>(fullscreen ? dm.dmPelsWidth : settings.windowWidth) && shapes[i]->vx>0))
+			shapes[i]->vx = -shapes[i]->vx;
 	}
 	for (int i = 0; i < 4; i++)
 		if (countOfShapes[i] < countOfShapes[4 + i] && GetRand(5) == 0)

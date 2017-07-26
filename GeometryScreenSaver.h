@@ -41,6 +41,9 @@ private:
 	BOOL OpenFileDialog();
 	BOOL ChooseColorDialog(UINT*, const UINT);
 	BOOL ChooseFontDialog();
+	void FitBorderRect(int borderW, int borderH, int imageW, int imageH, int*l, int*t, int*r, int*b);
+	void DrawTrianglePolygon(int cx, int cy, int radius, int rot_rad, int r, int g, int b, int num, int thick);
+	POINT vbuffer[5];
 	HWND hDialog;
 	ScrSettings settings;
 	TCHAR settingsFileName[MAX_PATH], appname[32];
@@ -49,12 +52,18 @@ private:
 
 	void LoadSourceFromFiles();
 	void DrawBackgroundSplash();
-	void DrawShapes();
+	void DrawShapes(bool fill);
+	void DrawCoverLayer();
 	void DrawDateTime();
 	void ShapesAct();
-	UINT dxBackgroundImage;
+	UINT dxBackgroundImage;//背景图句柄
 	int bgLeft, bgTop, bgRight, bgBottom;//背景图相关变量
+	UINT dxCoverImage;//覆盖层图句柄
+	int bgCoverLeft, bgCoverTop, bgCoverRight, bgCoverBottom;//覆盖层图相关变量
+	int hScreenCover;//覆盖层屏幕句柄
 	int timeX, timeY;//时间相关变量
+	int hImgWhiteFill;
+	int screenWidth, screenHeight;
 	time_t temptimet;
 	tm temptm;
 	std::vector<Shapes*>shapes;
