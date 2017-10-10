@@ -26,6 +26,8 @@ public:
 	void OnEditChangeMinMaxRadius(int);
 	void OnCommandBackgroundColor();
 	void OnCommandBackgroundSplashBrowse();
+	void OnCommandCoverColor();
+	void OnCommandCoverSplashBrowse();
 	void OnCommandPureColorBorder();
 	void OnCommandTimeColor();
 	void OnCommandTimeFont();
@@ -38,7 +40,7 @@ public:
 private:
 	void CopySettingsToDialog();
 	void CopyDialogToSettings();
-	BOOL OpenFileDialog();
+	BOOL OpenFileDialog(wchar_t*);
 	BOOL ChooseColorDialog(UINT*, const UINT);
 	BOOL ChooseFontDialog();
 	void FitBorderRect(int borderW, int borderH, int imageW, int imageH, int*l, int*t, int*r, int*b);

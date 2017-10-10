@@ -361,6 +361,7 @@ void GeometryScreenSaver::ConfigureDialogControl()
 	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_PURECOLORBORDER_ALPHA), TBM_SETRANGE, FALSE, MAKELPARAM(0, 255));
 	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_BACKGROUNDCOLOR_ALPHA), TBM_SETRANGE, FALSE, MAKELPARAM(0, 255));
 	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_TIMECOLOR_ALPHA), TBM_SETRANGE, FALSE, MAKELPARAM(0, 255));
+	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_COVERCOLOR_ALPHA), TBM_SETRANGE, FALSE, MAKELPARAM(0, 255));
 }
 
 void GeometryScreenSaver::OnShowWindow(HWND hwnd)
@@ -448,8 +449,26 @@ void GeometryScreenSaver::OnCommandBackgroundColor()
 
 void GeometryScreenSaver::OnCommandBackgroundSplashBrowse()
 {
-	if (OpenFileDialog())
+	if (OpenFileDialog(settings.backgroundSplash))
 		SetDlgItemText(hDialog, IDC_EDIT_BACKGROUNDSPLASH, settings.backgroundSplash);
+}
+
+void GeometryScreenSaver::OnCommandCoverColor()
+{
+	UINT newColor;
+	if (ChooseColorDialog(&newColor, settings.coverColor))
+	{
+		TCHAR stringbuf[32];
+		settings.coverColor = newColor;
+		wsprintf(stringbuf, GetStringFromResource(IDS_STRING_BUTTON_COVERCOLOR), settings.coverColor);
+		SetDlgItemText(hDialog, IDC_BUTTON_COVERCOLOR, stringbuf);
+	}
+}
+
+void GeometryScreenSaver::OnCommandCoverSplashBrowse()
+{
+	if (OpenFileDialog(settings.coverSplash))
+		SetDlgItemText(hDialog, IDC_EDIT_COVERSPLASH, settings.coverSplash);
 }
 
 void GeometryScreenSaver::OnCommandPureColorBorder()
@@ -529,6 +548,10 @@ void GeometryScreenSaver::OnSliderCustomDraw(UINT_PTR nID)
 		settings.timeColor = ((UINT)SendMessage(GetDlgItem(hDialog, IDC_SLIDER_TIMECOLOR_ALPHA),
 			TBM_GETPOS, 0, 0) << 24) + (settings.timeColor & 0x00FFFFFF);
 		break;
+	case IDC_SLIDER_COVERCOLOR_ALPHA:
+		settings.coverColor = ((UINT)SendMessage(GetDlgItem(hDialog, IDC_SLIDER_COVERCOLOR_ALPHA),
+			TBM_GETPOS, 0, 0) << 24) + (settings.coverColor & 0x00FFFFFF);
+		break;
 	}
 	CopySettingsToDialog();
 }
@@ -559,6 +582,8 @@ int GeometryScreenSaver::CallbackFunction(HWND hW, UINT uM, WPARAM wP, LPARAM lP
 			break;
 		case IDC_BUTTON_BACKGROUNDCOLOR:OnCommandBackgroundColor(); break;
 		case IDC_BUTTON_BACKGROUNDSPLASH_BROWSE:OnCommandBackgroundSplashBrowse(); break;
+		case IDC_BUTTON_COVERCOLOR:OnCommandCoverColor(); break;
+		case IDC_BUTTON_COVERSPLASH_BROWSE:OnCommandCoverSplashBrowse(); break;
 		case IDC_BUTTON_PURECOLORBORDER:OnCommandPureColorBorder(); break;
 		case IDC_BUTTON_TIMECOLOR:OnCommandTimeColor(); break;
 		case IDC_BUTTON_TIMEFONT:OnCommandTimeFont(); break;
@@ -585,6 +610,7 @@ int GeometryScreenSaver::CallbackFunction(HWND hW, UINT uM, WPARAM wP, LPARAM lP
 			case IDC_SLIDER_BACKGROUNDCOLOR_ALPHA:
 			case IDC_SLIDER_PURECOLORBORDER_ALPHA:
 			case IDC_SLIDER_TIMECOLOR_ALPHA:
+			case IDC_SLIDER_COVERCOLOR_ALPHA:
 				OnSliderCustomDraw(((NMTRBTHUMBPOSCHANGING*)lP)->hdr.idFrom);
 				break;
 			}
@@ -601,6 +627,8 @@ void GeometryScreenSaver::CopySettingsToDialog()
 	SetDlgItemText(hDialog, IDC_BUTTON_BACKGROUNDCOLOR, global_stringBuf);
 	SetDlgItemText(hDialog, IDC_EDIT_BACKGROUNDSPLASH, settings.backgroundSplash);
 	CheckDlgButton(hDialog, IDC_CHECK_FITBORDER, settings.fitBorder);
+	CheckDlgButton(hDialog, IDC_CHECK_USECOVER, settings.enableCoverLayer);
+	CheckDlgButton(hDialog, IDC_CHECK_COVERFITBORDER, settings.coverFitBorder);
 	SetDlgItemInt(hDialog, IDC_EDIT_MAXFALLDOWNSPEED, settings.maxFalldownSpeed, FALSE);
 	SetDlgItemInt(hDialog, IDC_EDIT_MAXHORIZONALSPEED, settings.maxHorizonalSpeed, FALSE);
 	SetDlgItemInt(hDialog, IDC_EDIT_MAXNTRIANGLE, settings.maxNTriangle, FALSE);
@@ -628,12 +656,19 @@ void GeometryScreenSaver::CopySettingsToDialog()
 	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_BACKGROUNDCOLOR_ALPHA), TBM_SETPOS, TRUE, settings.backgroundColor >> 24);
 	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_PURECOLORBORDER_ALPHA), TBM_SETPOS, TRUE, settings.pureColorBorder >> 24);
 	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_TIMECOLOR_ALPHA), TBM_SETPOS, TRUE, settings.timeColor >> 24);
+	wsprintf(global_stringBuf, TEXT("#%08X(&C)"), settings.coverColor);
+	SetDlgItemText(hDialog, IDC_BUTTON_COVERCOLOR, global_stringBuf);
+	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_COVERCOLOR_ALPHA), TBM_SETPOS, TRUE, settings.coverColor >> 24);
+	SetDlgItemText(hDialog, IDC_EDIT_COVERSPLASH, settings.coverSplash);
 }
 
 void GeometryScreenSaver::CopyDialogToSettings()
 {
-	GetDlgItemText(hDialog, IDC_EDIT_BACKGROUNDSPLASH, settings.backgroundSplash, sizeof(settings.backgroundSplash) / sizeof(*settings.backgroundSplash));
+	GetDlgItemText(hDialog, IDC_EDIT_BACKGROUNDSPLASH, settings.backgroundSplash, ARRAYSIZE(settings.backgroundSplash));
+	GetDlgItemText(hDialog, IDC_EDIT_COVERSPLASH, settings.coverSplash, ARRAYSIZE(settings.coverSplash));
 	settings.fitBorder = IsDlgButtonChecked(hDialog, IDC_CHECK_FITBORDER);
+	settings.enableCoverLayer = IsDlgButtonChecked(hDialog, IDC_CHECK_USECOVER);
+	settings.coverFitBorder = IsDlgButtonChecked(hDialog, IDC_CHECK_COVERFITBORDER);
 	settings.maxFalldownSpeed = GetDlgItemInt(hDialog, IDC_EDIT_MAXFALLDOWNSPEED, FALSE, FALSE);
 	settings.maxHorizonalSpeed = GetDlgItemInt(hDialog, IDC_EDIT_MAXHORIZONALSPEED, FALSE, FALSE);
 	settings.maxNTriangle = GetDlgItemInt(hDialog, IDC_EDIT_MAXNTRIANGLE, FALSE, FALSE);
@@ -649,7 +684,7 @@ void GeometryScreenSaver::CopyDialogToSettings()
 	settings.minRadius = GetDlgItemInt(hDialog, IDC_EDIT_MINRADIUS, FALSE, FALSE);
 }
 
-BOOL GeometryScreenSaver::OpenFileDialog()
+BOOL GeometryScreenSaver::OpenFileDialog(wchar_t *pstr)
 {
 	TCHAR tempStr[128], title[8];
 	const TCHAR filter[] = TEXT("\0*.bmp;*.jpg;*.jpeg;*.png;*.dds;*.argb;*.tga\0\0");
@@ -663,12 +698,12 @@ BOOL GeometryScreenSaver::OpenFileDialog()
 	openfile.hwndOwner = hDialog;
 	openfile.hInstance = NULL;
 	openfile.lpstrFilter = tempStr;
-	openfile.lpstrFile = settings.backgroundSplash;
+	openfile.lpstrFile = pstr;
 	openfile.lpstrTitle = title;
 	openfile.nMaxFile = MAX_PATH;
 	openfile.lpstrFileTitle = NULL;
 	openfile.nMaxFileTitle = MAX_PATH;
-	openfile.Flags = OFN_HIDEREADONLY;
+	openfile.Flags = OFN_HIDEREADONLY | OFN_FILEMUSTEXIST;
 	openfile.lpstrDefExt = TEXT("png");
 	return GetOpenFileName(&openfile);
 }

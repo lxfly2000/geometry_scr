@@ -22,7 +22,7 @@
     <ProjectGuid>{2BF35BC1-AAC8-40D6-B906-AA1AD71B5985}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>GeometryScr</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.15063.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
