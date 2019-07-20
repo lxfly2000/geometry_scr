@@ -1,0 +1,6 @@
+Debug/
+Release/
+*.aps
+*.ini
+Log.txt
+.vs/

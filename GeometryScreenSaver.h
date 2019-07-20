@@ -1,6 +1,7 @@
 #pragma once
 #include <DxLib.h>
 #include <vector>
+#include <string>
 #include "ScrSettings.h"
 #include "Shapes.h"
 
@@ -35,6 +36,10 @@ public:
 	void OnCommandLoadDefaultSettings();
 	void OnCommandVisit();
 	void OnSliderCustomDraw(UINT_PTR);
+	void OnCommandClearBackground();
+	void OnCommandClearCover();
+	void OnCommandBackgroundUseScreen();
+	void OnCommandCoverUseScreen();
 
 	int CallbackFunction(HWND, UINT, WPARAM, LPARAM);
 private:
@@ -57,6 +62,7 @@ private:
 	void DrawShapes(bool fill);
 	void DrawCoverLayer();
 	void DrawDateTime();
+	void SetDigit(LPCTSTR str, size_t slen);
 	void ShapesAct();
 	UINT dxBackgroundImage;//背景图句柄
 	int bgLeft, bgTop, bgRight, bgBottom;//背景图相关变量
@@ -66,10 +72,12 @@ private:
 	int timeX, timeY;//时间相关变量
 	int hImgWhiteFill;
 	int screenWidth, screenHeight;
-	time_t temptimet;
+	time_t temptimet,temptimet_last;
+	int digit_index;
 	tm temptm;
 	std::vector<Shapes*>shapes;
 	int countOfShapes[8];//图形的数量，0=圆，1=三角形，2=正方形，3=五边形，4～7=N边形最多数
+	int dxScreenShot;
 #ifdef _UNICODE
 	std::wstring timeFormatString;
 #else

@@ -86,6 +86,9 @@ void ScrSettings::SaveScrSettingsToFile(wchar_t *filename, wchar_t *appname)
 	WritePrivateProfileString(appname, TEXT(VAR_TO_STRING(windowWidth)), ntostr(windowWidth, stringbuf), filename);
 	WritePrivateProfileString(appname, TEXT(VAR_TO_STRING(windowHeight)), ntostr(windowHeight, stringbuf), filename);
 	WritePrivateProfileString(appname, TEXT(VAR_TO_STRING(randSeed)), ntostr(randSeed, stringbuf), filename);
+	WritePrivateProfileString(appname, TEXT(VAR_TO_STRING(timeAlignAnchorX)), ntostr(timeAlignAnchorX, stringbuf), filename);
+	WritePrivateProfileString(appname, TEXT(VAR_TO_STRING(timeAlignAnchorY)), ntostr(timeAlignAnchorY, stringbuf), filename);
+	WritePrivateProfileString(appname, TEXT(VAR_TO_STRING(digitMovingSpeed)), ntostr(digitMovingSpeed, stringbuf), filename);
 }
 
 void ScrSettings::LoadDefaultScrSettings()
@@ -123,6 +126,9 @@ void ScrSettings::LoadDefaultScrSettings()
 	minFalldownSpeed = 1;
 	colorTransMaxSpeed = 1;
 	randSeed = 0;
+	timeAlignAnchorX = 0;
+	timeAlignAnchorY = 0;
+	digitMovingSpeed = 0;
 }
 
 void ScrSettings::GetScrSettingsFromFile(wchar_t *filename, wchar_t *appname)
@@ -164,6 +170,9 @@ void ScrSettings::GetScrSettingsFromFile(wchar_t *filename, wchar_t *appname)
 	timeFontThickness = GetPrivateProfileInt(appname, TEXT(VAR_TO_STRING(timeFontThickness)), timeFontThickness, filename);
 	colorTransMaxSpeed = GetPrivateProfileInt(appname, TEXT(VAR_TO_STRING(colorTransMaxSpeed)), colorTransMaxSpeed, filename);
 	randSeed = GetPrivateProfileInt(appname, TEXT(VAR_TO_STRING(randSeed)), randSeed, filename);
+	timeAlignAnchorX = GetPrivateProfileInt(appname, TEXT(VAR_TO_STRING(timeAlignAnchorX)), timeAlignAnchorX, filename);
+	timeAlignAnchorY = GetPrivateProfileInt(appname, TEXT(VAR_TO_STRING(timeAlignAnchorY)), timeAlignAnchorY, filename);
+	digitMovingSpeed = GetPrivateProfileInt(appname, TEXT(VAR_TO_STRING(digitMovingSpeed)), digitMovingSpeed, filename);
 }
 
 wchar_t * ScrSettings::ntostr(int source, wchar_t *buf, bool inhex)

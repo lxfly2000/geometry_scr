@@ -6,6 +6,7 @@
 #include <cmath>
 
 #define DegToRad(d) ((d)*3.141592653545/180)
+#define KEY_USE_SCREEN "<SCREEN>"
 
 static GeometryScreenSaver *global_pGSS = nullptr;
 static COLORREF global_colorRef[16] = { 0 };
@@ -27,7 +28,7 @@ TCHAR *GetStringOfValue(int value, LPCTSTR formatStr = TEXT("%d"))
 	return global_stringBuf;
 }
 
-GeometryScreenSaver::GeometryScreenSaver() :fullscreen(true), hDialog(nullptr)
+GeometryScreenSaver::GeometryScreenSaver() :fullscreen(true), hDialog(nullptr),dxScreenShot(-1)
 {
 	if (global_pGSS)
 		delete global_pGSS;
@@ -55,6 +56,10 @@ int GeometryScreenSaver::Run()
 		SetWindowText(GetStringOfValue(settings.randSeed));
 	}
 	SRand(settings.randSeed);
+	if (lstrcmp(settings.backgroundSplash, TEXT(KEY_USE_SCREEN)) == 0)
+		settings.backgroundColor = 0;
+	if (lstrcmp(settings.coverSplash, TEXT(KEY_USE_SCREEN)) == 0)
+		settings.coverColor = 0;
 
 	dm.dmSize = sizeof(DEVMODE);
 	EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm);
@@ -134,7 +139,18 @@ void GeometryScreenSaver::FitBorderRect(int borderW, int borderH, int imageW, in
 void GeometryScreenSaver::LoadSourceFromFiles()
 {
 	GetDrawScreenSize(&screenWidth, &screenHeight);
-	dxBackgroundImage = LoadGraph(settings.backgroundSplash);
+	if (strcmpDx(settings.backgroundSplash, TEXT(KEY_USE_SCREEN)) == 0)
+	{
+		dxScreenShot = MakeGraph(dm.dmPelsWidth, dm.dmPelsHeight);
+		if (GetDesktopScreenGraph(0, 0, dm.dmPelsWidth, dm.dmPelsHeight, dxScreenShot))
+		{
+			DeleteGraph(dxScreenShot);
+			dxScreenShot = -1;
+		}
+		dxBackgroundImage = dxScreenShot;
+	}
+	if (dxBackgroundImage == -1)
+		dxBackgroundImage = LoadGraph(settings.backgroundSplash);
 	GetGraphSize(dxBackgroundImage, &bgRight, &bgBottom);
 	if (!bgRight)bgRight = 1;
 	if (!bgBottom)bgBottom = 1;
@@ -160,7 +176,21 @@ void GeometryScreenSaver::LoadSourceFromFiles()
 		SetMaskReverseEffectFlag(TRUE);
 		hScreenCover = MakeScreen(screenWidth, screenHeight, TRUE);
 		SetMaskScreenGraph(hScreenCover);
-		dxCoverImage = LoadGraph(settings.coverSplash);
+		if (strcmpDx(settings.coverSplash, TEXT(KEY_USE_SCREEN)) == 0)
+		{
+			if (dxScreenShot == -1)
+			{
+				dxScreenShot = MakeGraph(dm.dmPelsWidth, dm.dmPelsHeight);
+				if (GetDesktopScreenGraph(0, 0, dm.dmPelsWidth, dm.dmPelsHeight, dxScreenShot))
+				{
+					DeleteGraph(dxScreenShot);
+					dxScreenShot = -1;
+				}
+			}
+			dxCoverImage = dxScreenShot;
+		}
+		if (dxCoverImage == -1)
+			dxCoverImage = LoadGraph(settings.coverSplash);
 		GetGraphSize(dxCoverImage, &bgCoverRight, &bgCoverBottom);
 		if (!bgCoverRight)bgCoverRight = 1;
 		if (!bgCoverBottom)bgCoverBottom = 1;
@@ -184,41 +214,280 @@ void GeometryScreenSaver::DrawBackgroundSplash()
 		DrawExtendGraph(bgLeft, bgTop, bgRight, bgBottom, dxBackgroundImage, TRUE);
 }
 
+RECT operator+(const RECT& a, const RECT& b)
+{
+	RECT r;
+	r.bottom = a.bottom + b.bottom;
+	r.left = a.left + b.left;
+	r.right = a.right + b.right;
+	r.top = a.top + b.top;
+	return r;
+}
+
+RECT operator-(const RECT &a, const RECT &b)
+{
+	RECT r;
+	r.bottom = a.bottom - b.bottom;
+	r.left = a.left - b.left;
+	r.right = a.right - b.right;
+	r.top = a.top - b.top;
+	return r;
+}
+
+RECT operator*(const RECT &a, int n)
+{
+	RECT r;
+	r.bottom = a.bottom * n;
+	r.left = a.left * n;
+	r.right = a.right * n;
+	r.top = a.top * n;
+	return r;
+}
+
+RECT operator/(const RECT& a, int n)
+{
+	RECT r;
+	r.bottom = a.bottom / n;
+	r.left = a.left / n;
+	r.right = a.right / n;
+	r.top = a.top / n;
+	return r;
+}
+
+struct DisplayUnit
+{
+public:
+	TCHAR draw_str[4];
+	int x_offset, y_offset,start_x,start_y,to_x, to_y,anim_time_ms,anim_time_ms_cur;
+	RECT rect_start, rect_to, rect;
+private:
+	int hGraph,dw,dh;
+
+public:
+	DisplayUnit():hGraph(0)
+	{
+	}
+
+	void SetDigit(LPCTSTR str,size_t slen)
+	{
+		if (strncmpDx(draw_str, str,(int)slen) == 0)
+			return;
+		if (hGraph)
+			ReleaseDigitGraph();
+		MakeDigitGraph(str,slen);
+	}
+
+	void MakeDigitGraph(LPCTSTR str,size_t sl)
+	{
+		int dx, dy, dl,hSoftImage;
+		GetDrawStringSize(&dx, &dy, &dl, str, strlenDx(str));
+		hSoftImage = MakeSoftImage(dx, dy);
+		rect_start.left = rect_to.left = rect.left = 0;
+		rect_start.right = rect_to.right = rect.right = dx;
+		BltStringSoftImageWithStrLen(0, 0, str,sl, hSoftImage);
+		hGraph = CreateGraphFromSoftImage(hSoftImage);
+		GetGraphSize(hGraph, &dw, &dh);
+		DeleteSoftImage(hSoftImage);
+	}
+
+	void ReleaseDigitGraph()
+	{
+		DeleteGraph(hGraph);
+	}
+
+	void Animate(int delta_time_ms)
+	{
+		if (anim_time_ms_cur >= anim_time_ms)
+			return;
+		anim_time_ms_cur += delta_time_ms;
+		x_offset = start_x + (to_x - start_x) * anim_time_ms_cur / anim_time_ms;
+		y_offset = start_y + (to_y - start_y) * anim_time_ms_cur / anim_time_ms;
+		rect = rect_start + (rect_to - rect_start) * anim_time_ms_cur / anim_time_ms;
+	}
+	void Draw(int x_base,int y_base)
+	{
+		if (hGraph)
+			DrawRectGraph(x_base+x_offset, y_base+y_offset, rect.left, rect.top, CalcWidth(), CalcHeight(), hGraph, TRUE);
+	}
+	long CalcWidth()
+	{
+		return dw;
+	}
+	long CalcHeight()
+	{
+		return dh;
+	}
+};
+
+struct DigitUnit
+{
+	DisplayUnit unit, unit_last;
+	void Animate(int delta_time_ms)
+	{
+		unit.Animate(delta_time_ms);
+		unit_last.Animate(delta_time_ms);
+	}
+	void Draw(int x_base,int y_base)
+	{
+		unit.Draw(x_base,y_base);
+		unit_last.Draw(x_base,y_base);
+	}
+	long CalcWidth()
+	{
+		return max(unit.CalcWidth(),unit_last.CalcWidth());
+	}
+	long CalcHeight()
+	{
+		return unit.CalcHeight() + unit_last.CalcHeight();
+	}
+	void Set(LPCTSTR str,size_t slen,int x1_offset, int y1_offset, int x2_offset, int y2_offset, RECT r1, RECT r2, int anim_time)
+	{
+		if (strncmpDx(unit.draw_str, str, slen) == 0)
+			return;
+		unit_last = unit;
+		if (y2_offset > y1_offset)
+		{
+			//说明是在由上向下滑动
+			unit_last.to_y = unit_last.start_y + unit_last.CalcHeight();
+			unit_last.rect_to = { 0,unit_last.CalcHeight(),unit_last.CalcWidth(),unit_last.CalcHeight() };
+		}
+		else
+		{
+			unit_last.to_y = unit_last.start_y - unit_last.CalcHeight();
+			unit_last.rect_to = { 0,0,unit_last.CalcWidth(),0 };
+		}
+		unit_last.anim_time_ms = anim_time;
+		unit_last.anim_time_ms_cur = 0;
+		unit.SetDigit(str,slen);
+		unit.x_offset = unit.start_x = x1_offset;
+		unit.to_x = x2_offset;
+		unit.y_offset = unit.start_y = y1_offset;
+		unit.to_y = y2_offset;
+		unit.anim_time_ms = anim_time;
+		unit.anim_time_ms_cur = 0;
+		unit.rect = unit.rect_start = r1;
+		unit.rect_to = r2;
+	}
+};
+
+struct DigitsString
+{
+	std::vector<DigitUnit> digits;
+	DigitUnit& operator[](size_t index)
+	{
+		while (digits.size() < index + 1)
+			digits.push_back(DigitUnit());
+		return digits[index];
+	}
+	void Release()
+	{
+		digits.clear();
+	}
+	size_t Size()
+	{
+		return digits.size();
+	}
+	long CalcWidth()
+	{
+		long w = 0;
+		for (auto& e : digits)
+			w += e.CalcWidth();
+		return w;
+	}
+	long CalcHeight()
+	{
+		long h = 0;
+		for (auto& e : digits)
+		{
+			long eh = e.CalcHeight();
+			if (eh > h)
+				h = eh;
+		}
+		return h;
+	}
+	void Animate(int delta_time_ms)
+	{
+		for (auto& e : digits)
+			e.Animate(delta_time_ms);
+	}
+	void Draw(int x, int y)
+	{
+		int x_adv = x;
+		for (size_t i=0;i<digits.size();i++)
+		{
+			digits[i].Draw(x_adv, y);
+			x_adv += digits[i].CalcWidth();
+		}
+	}
+}digitsString;
+
 void GeometryScreenSaver::DrawDateTime()
 {
+	temptimet_last = temptimet;
 	time(&temptimet);
-	localtime_s(&temptm, &temptimet);
-	timeFormatString.clear();
-	if (settings.GetScrTimeFormat(1))
+	if (temptimet_last != temptimet)
 	{
-		timeFormatString.append(GetStringOfValue(temptm.tm_year + 1900));
-		timeFormatString.append(TEXT("-"));
+		digit_index = 0;
+		localtime_s(&temptm, &temptimet);
+		timeFormatString.clear();
+		TCHAR* p;
+		if (settings.GetScrTimeFormat(1))
+		{
+			p = GetStringOfValue(temptm.tm_year + 1900);
+			for (int i = 0; p[i]; i++)
+				SetDigit(p + i, 1);
+			SetDigit(TEXT("-"), 1);
+		}
+		if (settings.GetScrTimeFormat(2))
+		{
+			p = GetStringOfValue(temptm.tm_mon + 1);
+			for (int i = 0; p[i]; i++)
+				SetDigit(p + i, 1);
+			SetDigit(TEXT("-"), 1);
+			p = GetStringOfValue(temptm.tm_mday);
+			for (int i = 0; p[i]; i++)
+				SetDigit(p + i, 1);
+			SetDigit(TEXT(" "), 1);
+		}
+		if (settings.GetScrTimeFormat(3))
+		{
+			p = GetStringOfValue(temptm.tm_hour, TEXT("%2d"));
+			for (int i = 0; p[i]; i++)
+				SetDigit(p + i, 1);
+			SetDigit(TEXT(":"), 1);
+			p = GetStringOfValue(temptm.tm_min, TEXT("%02d"));
+			for (int i = 0; p[i]; i++)
+				SetDigit(p + i, 1);
+		}
+		if (settings.GetScrTimeFormat(4))
+		{
+			SetDigit(TEXT(":"),1);
+			p = GetStringOfValue(temptm.tm_sec, TEXT("%02d"));
+			for (int i = 0; p[i]; i++)
+				SetDigit(p + i, 1);
+		}
+		if (settings.GetScrTimeFormat(5))
+		{
+			p = GetStringFromResource(weekstrindex[temptm.tm_wday]);
+			SetDigit(p, strlenDx(p));
+		}
 	}
-	if (settings.GetScrTimeFormat(2))
-	{
-		timeFormatString.append(GetStringOfValue(temptm.tm_mon + 1));
-		timeFormatString.append(TEXT("-"));
-		timeFormatString.append(GetStringOfValue(temptm.tm_mday));
-		timeFormatString.append(TEXT(" "));
-	}
-	if (settings.GetScrTimeFormat(3))
-	{
-		timeFormatString.append(GetStringOfValue(temptm.tm_hour, TEXT("%2d")));
-		timeFormatString.append(TEXT(":"));
-		timeFormatString.append(GetStringOfValue(temptm.tm_min, TEXT("%02d")));
-	}
-	if (settings.GetScrTimeFormat(4))
-	{
-		timeFormatString.append(TEXT(":"));
-		timeFormatString.append(GetStringOfValue(temptm.tm_sec, TEXT("%02d")));
-	}
-	if (settings.GetScrTimeFormat(5))
-	{
-		timeFormatString.append(TEXT(" "));
-		timeFormatString.append(GetStringFromResource(weekstrindex[temptm.tm_wday]));
-	}
-	DrawFormatString(timeX, timeY, GetColor(settings.timeColor & 0x000000FF, (settings.timeColor & 0x0000FF00) >> 8,
-		(settings.timeColor & 0x00FF0000) >> 16), timeFormatString.c_str());
+	digitsString.Animate((int)(1000.0f / GetFPS()));
+	int dx, dy;
+	dx = digitsString.CalcWidth();
+	dy = digitsString.CalcHeight();
+	digitsString.Draw(timeX - dx * settings.timeAlignAnchorX / 100, timeY - dy * settings.timeAlignAnchorY / 100);
+}
+
+void GeometryScreenSaver::SetDigit(LPCTSTR str, size_t slen)
+{
+	int dw, dh, dl;
+	GetDrawStringSize(&dw, &dh, &dl, str, slen);
+	if (settings.digitMovingSpeed > 0)//向下滑动
+		digitsString[digit_index].Set(str, slen, 0, -dh, 0, 0, { 0,dh,dw,dh }, { 0,0, dw ,dh }, settings.digitMovingSpeed);
+	else
+		digitsString[digit_index].Set(str, slen, 0, dh, 0, 0, { 0,0,dw,0 }, { 0,0, dw ,dh }, settings.digitMovingSpeed);
+	digit_index++;
 }
 
 void GeometryScreenSaver::DrawTrianglePolygon(int cx, int cy, int radius, int rot_deg, int r, int g, int b, int num, int thick)
@@ -358,6 +627,9 @@ void GeometryScreenSaver::ConfigureDialogControl()
 	SendMessage(GetDlgItem(hDialog, IDC_SPIN_BORDERWIDTH), UDM_SETRANGE32, -1, 100);
 	SendMessage(GetDlgItem(hDialog, IDC_SPIN_MINRADIUS), UDM_SETRANGE32, 0, 999);
 	SendMessage(GetDlgItem(hDialog, IDC_SPIN_MAXRADIUS), UDM_SETRANGE32, 0, 999);
+	SendMessage(GetDlgItem(hDialog, IDC_SPIN_TIMEANCHORX), UDM_SETRANGE32, 0, 100);
+	SendMessage(GetDlgItem(hDialog, IDC_SPIN_TIMEANCHORY), UDM_SETRANGE32, 0, 100);
+	SendMessage(GetDlgItem(hDialog, IDC_SPIN_DIGITMOVINGSPEED), UDM_SETRANGE32, -999, 999);
 	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_PURECOLORBORDER_ALPHA), TBM_SETRANGE, FALSE, MAKELPARAM(0, 255));
 	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_BACKGROUNDCOLOR_ALPHA), TBM_SETRANGE, FALSE, MAKELPARAM(0, 255));
 	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_TIMECOLOR_ALPHA), TBM_SETRANGE, FALSE, MAKELPARAM(0, 255));
@@ -556,6 +828,26 @@ void GeometryScreenSaver::OnSliderCustomDraw(UINT_PTR nID)
 	CopySettingsToDialog();
 }
 
+void GeometryScreenSaver::OnCommandClearBackground()
+{
+	SetDlgItemText(hDialog, IDC_EDIT_BACKGROUNDSPLASH, TEXT(""));
+}
+
+void GeometryScreenSaver::OnCommandClearCover()
+{
+	SetDlgItemText(hDialog, IDC_EDIT_COVERSPLASH, TEXT(""));
+}
+
+void GeometryScreenSaver::OnCommandBackgroundUseScreen()
+{
+	SetDlgItemText(hDialog, IDC_EDIT_BACKGROUNDSPLASH, TEXT(KEY_USE_SCREEN));
+}
+
+void GeometryScreenSaver::OnCommandCoverUseScreen()
+{
+	SetDlgItemText(hDialog, IDC_EDIT_COVERSPLASH, TEXT(KEY_USE_SCREEN));
+}
+
 int GeometryScreenSaver::CallbackFunction(HWND hW, UINT uM, WPARAM wP, LPARAM lP)
 {
 	switch (uM)
@@ -590,6 +882,10 @@ int GeometryScreenSaver::CallbackFunction(HWND hW, UINT uM, WPARAM wP, LPARAM lP
 		case IDC_BUTTON_ABOUT: OnCommandAbout(); break;
 		case IDC_BUTTON_LOADDEFAULTSETTINGS:OnCommandLoadDefaultSettings(); break;
 		case IDC_BUTTON_VISIT:OnCommandVisit(); break;
+		case IDC_BUTTON_CLEARBACKGROUND:OnCommandClearBackground(); break;
+		case IDC_BUTTON_CLEARCOVER:OnCommandClearCover(); break;
+		case IDC_BUTTON_BACKGROUNDUSESCREEN:OnCommandBackgroundUseScreen(); break;
+		case IDC_BUTTON_COVERUSESCREEN:OnCommandCoverUseScreen(); break;
 		}
 		break;
 	case WM_DROPFILES:OnDropFiles((HDROP)wP); break;
@@ -660,6 +956,9 @@ void GeometryScreenSaver::CopySettingsToDialog()
 	SetDlgItemText(hDialog, IDC_BUTTON_COVERCOLOR, global_stringBuf);
 	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_COVERCOLOR_ALPHA), TBM_SETPOS, TRUE, settings.coverColor >> 24);
 	SetDlgItemText(hDialog, IDC_EDIT_COVERSPLASH, settings.coverSplash);
+	SetDlgItemInt(hDialog, IDC_EDIT_TIMEANCHORX, settings.timeAlignAnchorX, FALSE);
+	SetDlgItemInt(hDialog, IDC_EDIT_TIMEANCHORY, settings.timeAlignAnchorY, FALSE);
+	SetDlgItemInt(hDialog, IDC_EDIT_DIGITMOVINGSPEED, settings.digitMovingSpeed, TRUE);
 }
 
 void GeometryScreenSaver::CopyDialogToSettings()
@@ -682,6 +981,9 @@ void GeometryScreenSaver::CopyDialogToSettings()
 	settings.timePosY = GetDlgItemInt(hDialog, IDC_EDIT_TIMEPOSY, FALSE, FALSE);
 	settings.maxRadius = GetDlgItemInt(hDialog, IDC_EDIT_MAXRADIUS, FALSE, FALSE);
 	settings.minRadius = GetDlgItemInt(hDialog, IDC_EDIT_MINRADIUS, FALSE, FALSE);
+	settings.timeAlignAnchorX = GetDlgItemInt(hDialog, IDC_EDIT_TIMEANCHORX, FALSE, FALSE);
+	settings.timeAlignAnchorY = GetDlgItemInt(hDialog, IDC_EDIT_TIMEANCHORY, FALSE, FALSE);
+	settings.digitMovingSpeed = GetDlgItemInt(hDialog, IDC_EDIT_DIGITMOVINGSPEED, FALSE, TRUE);
 }
 
 BOOL GeometryScreenSaver::OpenFileDialog(wchar_t *pstr)
