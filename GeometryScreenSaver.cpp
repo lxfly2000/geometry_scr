@@ -64,6 +64,7 @@ int GeometryScreenSaver::Run()
 	dm.dmSize = sizeof(DEVMODE);
 	EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm);
 	ChangeFullscreenSettings(true);
+	ChangeWindowMode(TRUE);
 
 	// ＤＸライブラリ初期化処理
 	if (DxLib_Init() == -1) return -1;
@@ -268,23 +269,40 @@ public:
 	{
 	}
 
-	void SetDigit(LPCTSTR str,size_t slen)
+	void SetDigit(LPCTSTR str,size_t slen,int color)
 	{
 		if (strncmpDx(draw_str, str,(int)slen) == 0)
 			return;
+		strncpyDx(draw_str, str, slen);
 		if (hGraph)
 			ReleaseDigitGraph();
-		MakeDigitGraph(str,slen);
+		MakeDigitGraph(str,slen,color);
 	}
 
-	void MakeDigitGraph(LPCTSTR str,size_t sl)
+	void MakeDigitGraph(LPCTSTR str,size_t sl,int color)
 	{
 		int dx, dy, dl,hSoftImage;
-		GetDrawStringSize(&dx, &dy, &dl, str, strlenDx(str));
-		hSoftImage = MakeSoftImage(dx, dy);
+		GetDrawStringSize(&dx, &dy, &dl, str, sl);
+		hSoftImage = MakeARGB8ColorSoftImage(dx, dy);
+		ClearRectSoftImage(hSoftImage, 0, 0, dx, dy);
 		rect_start.left = rect_to.left = rect.left = 0;
 		rect_start.right = rect_to.right = rect.right = dx;
 		BltStringSoftImageWithStrLen(0, 0, str,sl, hSoftImage);
+		for (int j = 0; j < dy; j++)
+		{
+			for (int i = 0; i < dx; i++)
+			{
+				int r, g, b, a;
+				GetPixelSoftImage(hSoftImage, i, j, &r, &g, &b, &a);
+				if (r || g || b)
+				{
+					r = color & 0xFF;
+					g = (color >> 8) & 0xFF;
+					b = (color >> 16) & 0xFF;
+					DrawPixelSoftImage(hSoftImage, i, j, r, g, b, a);
+				}
+			}
+		}
 		hGraph = CreateGraphFromSoftImage(hSoftImage);
 		GetGraphSize(hGraph, &dw, &dh);
 		DeleteSoftImage(hSoftImage);
@@ -297,25 +315,45 @@ public:
 
 	void Animate(int delta_time_ms)
 	{
-		if (anim_time_ms_cur >= anim_time_ms)
+		int temp_atime = anim_time_ms;
+		if (temp_atime < 0)
+			temp_atime = -temp_atime;
+		else if (temp_atime == 0 && y_offset != to_y)
+		{
+			x_offset = to_x;
+			y_offset = to_y;
+			rect = rect_to;
+			return;
+		}
+		if (anim_time_ms_cur >= temp_atime)
 			return;
 		anim_time_ms_cur += delta_time_ms;
-		x_offset = start_x + (to_x - start_x) * anim_time_ms_cur / anim_time_ms;
-		y_offset = start_y + (to_y - start_y) * anim_time_ms_cur / anim_time_ms;
-		rect = rect_start + (rect_to - rect_start) * anim_time_ms_cur / anim_time_ms;
+		if (anim_time_ms_cur > temp_atime)
+			anim_time_ms_cur = temp_atime;
+		x_offset = start_x + (to_x - start_x) * anim_time_ms_cur / temp_atime;
+		y_offset = start_y + (to_y - start_y) * anim_time_ms_cur / temp_atime;
+		rect = rect_start + (rect_to - rect_start) * anim_time_ms_cur / temp_atime;
 	}
 	void Draw(int x_base,int y_base)
 	{
-		if (hGraph)
-			DrawRectGraph(x_base+x_offset, y_base+y_offset, rect.left, rect.top, CalcWidth(), CalcHeight(), hGraph, TRUE);
+		if (hGraph && rect.bottom > rect.top)
+			DrawRectGraph(x_base + x_offset, y_base + y_offset, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, hGraph, TRUE);
 	}
-	long CalcWidth()
+	int GetGraphWidth()
 	{
 		return dw;
 	}
-	long CalcHeight()
+	int GetGraphHeight()
 	{
 		return dh;
+	}
+	long CalcVisibleWidth()
+	{
+		return rect.right - rect.left;
+	}
+	long CalcVisibleHeight()
+	{
+		return rect.bottom - rect.top;
 	}
 };
 
@@ -334,31 +372,34 @@ struct DigitUnit
 	}
 	long CalcWidth()
 	{
-		return max(unit.CalcWidth(),unit_last.CalcWidth());
+		return max(unit.CalcVisibleWidth(),unit_last.CalcVisibleWidth());
 	}
 	long CalcHeight()
 	{
-		return unit.CalcHeight() + unit_last.CalcHeight();
+		return unit.CalcVisibleHeight() + unit_last.CalcVisibleHeight();
 	}
-	void Set(LPCTSTR str,size_t slen,int x1_offset, int y1_offset, int x2_offset, int y2_offset, RECT r1, RECT r2, int anim_time)
+	void Set(LPCTSTR str,size_t slen,int color,int x1_offset, int y1_offset, int x2_offset, int y2_offset, RECT r1, RECT r2, int anim_time)
 	{
 		if (strncmpDx(unit.draw_str, str, slen) == 0)
 			return;
 		unit_last = unit;
-		if (y2_offset > y1_offset)
+		unit_last.start_x = unit_last.x_offset = 0;
+		unit_last.start_y = unit_last.y_offset = 0;
+		unit_last.rect_start = unit_last.rect = { 0,0,unit_last.GetGraphWidth(),unit_last.GetGraphHeight() };
+		if (y2_offset >= y1_offset)
 		{
 			//说明是在由上向下滑动
-			unit_last.to_y = unit_last.start_y + unit_last.CalcHeight();
-			unit_last.rect_to = { 0,unit_last.CalcHeight(),unit_last.CalcWidth(),unit_last.CalcHeight() };
+			unit_last.to_y = unit_last.start_y + unit_last.GetGraphHeight();
+			unit_last.rect_to = { 0,0,unit_last.GetGraphWidth(),0 };
 		}
 		else
 		{
-			unit_last.to_y = unit_last.start_y - unit_last.CalcHeight();
-			unit_last.rect_to = { 0,0,unit_last.CalcWidth(),0 };
+			unit_last.to_y = unit_last.start_y;
+			unit_last.rect_to = { 0,unit_last.GetGraphHeight(),unit_last.GetGraphWidth(),unit_last.GetGraphHeight() };
 		}
 		unit_last.anim_time_ms = anim_time;
 		unit_last.anim_time_ms_cur = 0;
-		unit.SetDigit(str,slen);
+		unit.SetDigit(str,slen,color);
 		unit.x_offset = unit.start_x = x1_offset;
 		unit.to_x = x2_offset;
 		unit.y_offset = unit.start_y = y1_offset;
@@ -429,7 +470,6 @@ void GeometryScreenSaver::DrawDateTime()
 	{
 		digit_index = 0;
 		localtime_s(&temptm, &temptimet);
-		timeFormatString.clear();
 		TCHAR* p;
 		if (settings.GetScrTimeFormat(1))
 		{
@@ -468,8 +508,16 @@ void GeometryScreenSaver::DrawDateTime()
 		}
 		if (settings.GetScrTimeFormat(5))
 		{
+			SetDigit(TEXT(" "), 1);
 			p = GetStringFromResource(weekstrindex[temptm.tm_wday]);
 			SetDigit(p, strlenDx(p));
+		}
+		while (digit_index < digitsString.Size())
+		{
+			if (digitsString[digit_index].unit.draw_str[0] == 0)
+				digitsString.digits.erase(digitsString.digits.begin() + digit_index);
+			else
+				SetDigit(TEXT(""), 1);
 		}
 	}
 	digitsString.Animate((int)(1000.0f / GetFPS()));
@@ -484,9 +532,9 @@ void GeometryScreenSaver::SetDigit(LPCTSTR str, size_t slen)
 	int dw, dh, dl;
 	GetDrawStringSize(&dw, &dh, &dl, str, slen);
 	if (settings.digitMovingSpeed > 0)//向下滑动
-		digitsString[digit_index].Set(str, slen, 0, -dh, 0, 0, { 0,dh,dw,dh }, { 0,0, dw ,dh }, settings.digitMovingSpeed);
+		digitsString[digit_index].Set(str, slen,settings.timeColor, 0, 0, 0, 0, { 0,dh,dw,dh }, { 0,0, dw ,dh }, settings.digitMovingSpeed);
 	else
-		digitsString[digit_index].Set(str, slen, 0, dh, 0, 0, { 0,0,dw,0 }, { 0,0, dw ,dh }, settings.digitMovingSpeed);
+		digitsString[digit_index].Set(str, slen,settings.timeColor, 0, dh, 0, 0, { 0,0,dw,0 }, { 0,0, dw ,dh }, settings.digitMovingSpeed);
 	digit_index++;
 }
 
@@ -629,7 +677,7 @@ void GeometryScreenSaver::ConfigureDialogControl()
 	SendMessage(GetDlgItem(hDialog, IDC_SPIN_MAXRADIUS), UDM_SETRANGE32, 0, 999);
 	SendMessage(GetDlgItem(hDialog, IDC_SPIN_TIMEANCHORX), UDM_SETRANGE32, 0, 100);
 	SendMessage(GetDlgItem(hDialog, IDC_SPIN_TIMEANCHORY), UDM_SETRANGE32, 0, 100);
-	SendMessage(GetDlgItem(hDialog, IDC_SPIN_DIGITMOVINGSPEED), UDM_SETRANGE32, -1000, 1000);
+	SendMessage(GetDlgItem(hDialog, IDC_SPIN_DIGITMOVINGSPEED), UDM_SETRANGE32, -10000, 10000);
 	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_PURECOLORBORDER_ALPHA), TBM_SETRANGE, FALSE, MAKELPARAM(0, 255));
 	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_BACKGROUNDCOLOR_ALPHA), TBM_SETRANGE, FALSE, MAKELPARAM(0, 255));
 	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_TIMECOLOR_ALPHA), TBM_SETRANGE, FALSE, MAKELPARAM(0, 255));

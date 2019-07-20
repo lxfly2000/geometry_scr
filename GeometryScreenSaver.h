@@ -78,11 +78,6 @@ private:
 	std::vector<Shapes*>shapes;
 	int countOfShapes[8];//图形的数量，0=圆，1=三角形，2=正方形，3=五边形，4～7=N边形最多数
 	int dxScreenShot;
-#ifdef _UNICODE
-	std::wstring timeFormatString;
-#else
-	std::string timeFormatString;
-#endif
 };
 
 INT_PTR CALLBACK DialogCallback(HWND, UINT, WPARAM, LPARAM);

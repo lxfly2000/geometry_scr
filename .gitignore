@@ -5,3 +5,4 @@ Release/
 Log.txt
 .vs/
 DxLib_VC
+*.user
