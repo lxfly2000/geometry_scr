@@ -4,4 +4,4 @@ Release/
 *.ini
 Log.txt
 .vs/
-DxLib_VC/
+DxLib_VC
