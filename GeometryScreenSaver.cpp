@@ -402,14 +402,14 @@ public:
 	{
 		return dh;
 	}
-	long CalcVisibleWidth()
+	/*long CalcVisibleWidth()
 	{
 		return rect.right - rect.left;
 	}
 	long CalcVisibleHeight()
 	{
 		return rect.bottom - rect.top;
-	}
+	}*/
 };
 
 struct DigitUnit
@@ -427,11 +427,11 @@ struct DigitUnit
 	}
 	long CalcWidth()
 	{
-		return max(unit.CalcVisibleWidth(),unit_last.CalcVisibleWidth());
+		return max(unit.GetGraphWidth(),unit_last.GetGraphWidth());
 	}
 	long CalcHeight()
 	{
-		return unit.CalcVisibleHeight() + unit_last.CalcVisibleHeight();
+		return unit.GetGraphHeight();
 	}
 	void Set(LPCTSTR str,size_t slen, const ScrSettings* st,int x1_offset, int y1_offset, int x2_offset, int y2_offset, RECT r1, RECT r2, int anim_time)
 	{
@@ -440,7 +440,8 @@ struct DigitUnit
 		unit_last = unit;
 		unit_last.start_x = unit_last.x_offset = 0;
 		unit_last.start_y = unit_last.y_offset = 0;
-		unit_last.rect_start = unit_last.rect = { 0,0,unit_last.CalcVisibleWidth(),unit_last.CalcVisibleHeight() };//用GetGraphxxx会造成矩形框不稳定
+		//GetGraphxxx与CalcVisiblexxx混用会造成矩形框不稳定，且用CalcVisiblexxx会使位置不准
+		unit_last.rect_start = unit_last.rect = { 0,0,unit_last.GetGraphWidth(),unit_last.GetGraphHeight() };
 		if (anim_time == 0)
 		{
 			//说明是不使用动画
@@ -451,12 +452,12 @@ struct DigitUnit
 		{
 			//说明是在由上向下滑动
 			unit_last.to_y = unit_last.start_y + unit_last.GetGraphHeight();
-			unit_last.rect_to = { 0,0,unit_last.CalcVisibleWidth(),0 };
+			unit_last.rect_to = { 0,0,unit_last.GetGraphWidth(),0 };
 		}
 		else
 		{
 			unit_last.to_y = unit_last.start_y;
-			unit_last.rect_to = { 0,unit_last.GetGraphHeight(),unit_last.CalcVisibleWidth(),unit_last.GetGraphHeight() };
+			unit_last.rect_to = { 0,unit_last.GetGraphHeight(),unit_last.GetGraphWidth(),unit_last.GetGraphHeight() };
 		}
 		unit_last.anim_time_ms = anim_time;
 		unit_last.anim_time_ms_cur = 0;
