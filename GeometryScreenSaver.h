@@ -73,7 +73,7 @@ private:
 	int hImgWhiteFill;
 	int screenWidth, screenHeight;
 	time_t temptimet,temptimet_last;
-	int digit_index;
+	size_t digit_index;
 	tm temptm;
 	std::vector<Shapes*>shapes;
 	int countOfShapes[8];//图形的数量，0=圆，1=三角形，2=正方形，3=五边形，4～7=N边形最多数
