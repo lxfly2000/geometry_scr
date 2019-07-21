@@ -440,7 +440,7 @@ struct DigitUnit
 		unit_last = unit;
 		unit_last.start_x = unit_last.x_offset = 0;
 		unit_last.start_y = unit_last.y_offset = 0;
-		unit_last.rect_start = unit_last.rect = { 0,0,unit_last.GetGraphWidth(),unit_last.GetGraphHeight() };
+		unit_last.rect_start = unit_last.rect = { 0,0,unit_last.CalcVisibleWidth(),unit_last.CalcVisibleHeight() };//用GetGraphxxx会造成矩形框不稳定
 		if (anim_time == 0)
 		{
 			//说明是不使用动画
@@ -451,12 +451,12 @@ struct DigitUnit
 		{
 			//说明是在由上向下滑动
 			unit_last.to_y = unit_last.start_y + unit_last.GetGraphHeight();
-			unit_last.rect_to = { 0,0,unit_last.GetGraphWidth(),0 };
+			unit_last.rect_to = { 0,0,unit_last.CalcVisibleWidth(),0 };
 		}
 		else
 		{
 			unit_last.to_y = unit_last.start_y;
-			unit_last.rect_to = { 0,unit_last.GetGraphHeight(),unit_last.GetGraphWidth(),unit_last.GetGraphHeight() };
+			unit_last.rect_to = { 0,unit_last.GetGraphHeight(),unit_last.CalcVisibleWidth(),unit_last.GetGraphHeight() };
 		}
 		unit_last.anim_time_ms = anim_time;
 		unit_last.anim_time_ms_cur = 0;
