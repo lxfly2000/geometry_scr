@@ -43,7 +43,7 @@ bool isFileWritable(const wchar_t *path)
 GeometryScreenSaver::GeometryScreenSaver() :fullscreen(true), hDialog(nullptr),dxScreenShot(-1),bgBottom(0),bgCoverBottom(0),
 bgCoverLeft(0), bgCoverRight(0), bgCoverTop(0), bgLeft(0), bgRight(0), bgTop(0), countOfShapes(), digit_index(0),dm(),dxBackgroundImage(-1),
 dxCoverImage(-1), hImgWhiteFill(0), hScreenCover(0), screenHeight(0), screenWidth(0), temptimet(0), temptimet_last(0), temptm(),
-timeX(0), timeY(0), vbuffer()
+timeX(0), timeY(0), vbuffer(), hScreenShot(NULL)
 {
 	if (global_pGSS)
 		delete global_pGSS;
@@ -115,6 +115,91 @@ struct GraphMaps
 	}
 }graphMaps;
 
+// lpRect 为截取的区域
+// by lymking@hotmail.com
+HBITMAP CopyScrToBitmap(LPRECT lpRect)
+
+{
+	HDC hScrDC = 0, hMemDC;
+	HBITMAP hBitmap, hOldBitmap;
+	//int nX,nY,xX2,nY2;
+	// bitmap width&height
+	int nWidth, nHeight;
+	// screen resolution
+	int xScrn, yScrn;
+	// makesure the rectangle not NULL
+	if (IsRectEmpty(lpRect))
+	{
+		return NULL;
+	}
+	// create desktop screen dc 
+	hScrDC = GetDC(GetDesktopWindow());/*CreateDC(_T("DISPLAY"), NULL, NULL, NULL);*/
+	if (hScrDC == NULL)
+		return NULL;
+	// create mem dc
+	hMemDC = CreateCompatibleDC(hScrDC);
+
+	// get resolutions
+	xScrn = GetDeviceCaps(hScrDC, HORZRES);
+	yScrn = GetDeviceCaps(hScrDC, VERTRES);
+	if (lpRect->left < 0)
+		lpRect->left = 0;
+	if (lpRect->top < 0)
+		lpRect->top = 0;
+	// 屏幕
+	nWidth = (lpRect->right - lpRect->left);
+	nHeight = (lpRect->bottom - lpRect->top);
+	// create bitmap
+	hBitmap = CreateCompatibleBitmap(hScrDC, nWidth, nHeight);
+	// select new bitmap
+	hOldBitmap = (HBITMAP)SelectObject(hMemDC, hBitmap);
+	// copy scr dc to mem dc
+	BitBlt(hMemDC, 0, 0, nWidth, nHeight, hScrDC, 0, 0, SRCCOPY);
+	// get bitmap handle
+	hBitmap = (HBITMAP)SelectObject(hMemDC, hOldBitmap);
+	// clean 
+	DeleteDC(hScrDC);
+	DeleteDC(hMemDC);
+	return hBitmap;
+}
+
+//https://dxlib.xsrv.jp/cgi/patiobbs/patio.cgi?mode=past&no=2068
+int LoadGraphFromHBitmap(HBITMAP hBmp)
+{
+	// DIBセクションの取得
+	BITMAP DDBInfo;
+	BITMAPINFO DIBInfo;
+
+	GetObject(hBmp, sizeof(BITMAP), &DDBInfo);
+	DIBInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	DIBInfo.bmiHeader.biWidth = DDBInfo.bmWidth;
+	DIBInfo.bmiHeader.biHeight = DDBInfo.bmHeight;
+	DIBInfo.bmiHeader.biPlanes = 1;
+	DIBInfo.bmiHeader.biBitCount = 32;
+	DIBInfo.bmiHeader.biCompression = BI_RGB;
+
+	BYTE* pData = new BYTE[DDBInfo.bmWidth * DDBInfo.bmHeight * 4];
+	HDC hDC = GetDC(GetMainWindowHandle());
+	GetDIBits(hDC, hBmp, 0, DDBInfo.bmHeight, (void*)pData, &DIBInfo, DIB_RGB_COLORS);
+	ReleaseDC(GetMainWindowHandle(), hDC);
+	DeleteObject(hBmp);
+
+	// ソフトイメージに変換してみる
+	int sh = MakeXRGB8ColorSoftImage(DDBInfo.bmWidth, DDBInfo.bmHeight);
+	BYTE* Dots = pData;
+	for (int y = DDBInfo.bmHeight - 1; y >= 0; y--) { // データは上下さかさまらしい
+		for (int x = 0; x < DDBInfo.bmWidth; x++) {
+			DrawPixelSoftImage(sh, x, y, *(Dots + 2), *(Dots + 1), *(Dots + 0), *(Dots + 3));
+			Dots += 4;
+		}
+	}
+	// ハンドルに変換してみる
+	int gh = CreateGraphFromBmp(&DIBInfo, pData); // やってみたらうまくいきました。
+
+	delete[] pData; // ReCreateGraphするときに必要かも。
+	return gh;
+}
+
 int GeometryScreenSaver::Run()
 {
 #ifndef _DEBUG
@@ -136,6 +221,9 @@ int GeometryScreenSaver::Run()
 	dm.dmSize = sizeof(DEVMODE);
 	EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm);
 	ChangeFullscreenSettings(true);
+
+	RECT rScreen = { 0,0,(LONG)dm.dmPelsWidth,(LONG)dm.dmPelsHeight };
+	hScreenShot = CopyScrToBitmap(&rScreen);
 
 	// ＤＸライブラリ初期化処理
 	if (DxLib_Init() == -1) return -1;
@@ -226,15 +314,7 @@ void GeometryScreenSaver::LoadSourceFromFiles()
 {
 	GetDrawScreenSize(&screenWidth, &screenHeight);
 	if (strcmpDx(settings.backgroundSplash, TEXT(KEY_USE_SCREEN)) == 0)
-	{
-		dxScreenShot = MakeGraph(dm.dmPelsWidth, dm.dmPelsHeight);
-		if (GetDesktopScreenGraph(0, 0, dm.dmPelsWidth, dm.dmPelsHeight, dxScreenShot))
-		{
-			DeleteGraph(dxScreenShot);
-			dxScreenShot = -1;
-		}
-		dxBackgroundImage = dxScreenShot;
-	}
+		dxBackgroundImage = dxScreenShot = LoadGraphFromHBitmap(hScreenShot);
 	if (dxBackgroundImage == -1)
 		dxBackgroundImage = LoadGraph(settings.backgroundSplash);
 	GetGraphSize(dxBackgroundImage, &bgRight, &bgBottom);
@@ -265,14 +345,7 @@ void GeometryScreenSaver::LoadSourceFromFiles()
 		if (strcmpDx(settings.coverSplash, TEXT(KEY_USE_SCREEN)) == 0)
 		{
 			if (dxScreenShot == -1)
-			{
-				dxScreenShot = MakeGraph(dm.dmPelsWidth, dm.dmPelsHeight);
-				if (GetDesktopScreenGraph(0, 0, dm.dmPelsWidth, dm.dmPelsHeight, dxScreenShot))
-				{
-					DeleteGraph(dxScreenShot);
-					dxScreenShot = -1;
-				}
-			}
+				dxScreenShot = LoadGraphFromHBitmap(hScreenShot);
 			dxCoverImage = dxScreenShot;
 		}
 		if (dxCoverImage == -1)
