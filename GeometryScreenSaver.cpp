@@ -4,6 +4,7 @@
 #include <Windows.h>
 #include <ctime>
 #include <cmath>
+#include <ShlObj.h>
 
 #define DegToRad(d) ((d)*3.141592653545/180)
 #define KEY_USE_SCREEN "<SCREEN>"
@@ -28,6 +29,17 @@ TCHAR *GetStringOfValue(int value, LPCTSTR formatStr = TEXT("%d"))
 	return global_stringBuf;
 }
 
+#include <fstream>
+
+bool isFileWritable(const wchar_t *path)
+{
+	BOOL e = PathFileExists(path);
+	bool r = std::ofstream(path, std::ios::app).operator bool();
+	if (!e)
+		DeleteFile(path);
+	return r;
+}
+
 GeometryScreenSaver::GeometryScreenSaver() :fullscreen(true), hDialog(nullptr),dxScreenShot(-1),bgBottom(0),bgCoverBottom(0),
 bgCoverLeft(0), bgCoverRight(0), bgCoverTop(0), bgLeft(0), bgRight(0), bgTop(0), countOfShapes(), digit_index(0),dm(),dxBackgroundImage(-1),
 dxCoverImage(-1), hImgWhiteFill(0), hScreenCover(0), screenHeight(0), screenWidth(0), temptimet(0), temptimet_last(0), temptm(),
@@ -37,8 +49,20 @@ timeX(0), timeY(0), vbuffer()
 		delete global_pGSS;
 	global_pGSS = this;
 	GetCurrentDirectory(sizeof(settingsFileName) / sizeof(*settingsFileName), settingsFileName);
-	PathCombine(settingsFileName, settingsFileName, GetStringFromResource(IDS_STRING_FILENAME_SETTINGS));
 	lstrcpy(appname, GetStringFromResource(IDS_STRING_APPNAME));
+	PathCombine(settingsFileName, settingsFileName, GetStringFromResource(IDS_STRING_FILENAME_SETTINGS));
+	if (!isFileWritable(settingsFileName))
+	{
+		GetModuleFileName(NULL, settingsFileName, MAX_PATH);
+		PathCombine(settingsFileName, settingsFileName, TEXT(".."));
+		PathCombine(settingsFileName, settingsFileName, global_stringBuf);
+		if (!isFileWritable(settingsFileName))
+		{
+			SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, 0, settingsFileName);
+			PathCombine(settingsFileName, settingsFileName, appname);
+			PathCombine(settingsFileName, settingsFileName, global_stringBuf);
+		}
+	}
 }
 
 GeometryScreenSaver::~GeometryScreenSaver()
