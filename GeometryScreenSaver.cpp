@@ -28,7 +28,10 @@ TCHAR *GetStringOfValue(int value, LPCTSTR formatStr = TEXT("%d"))
 	return global_stringBuf;
 }
 
-GeometryScreenSaver::GeometryScreenSaver() :fullscreen(true), hDialog(nullptr),dxScreenShot(-1)
+GeometryScreenSaver::GeometryScreenSaver() :fullscreen(true), hDialog(nullptr),dxScreenShot(-1),bgBottom(0),bgCoverBottom(0),
+bgCoverLeft(0), bgCoverRight(0), bgCoverTop(0), bgLeft(0), bgRight(0), bgTop(0), countOfShapes(), digit_index(0),dm(),dxBackgroundImage(-1),
+dxCoverImage(-1), hImgWhiteFill(0), hScreenCover(0), screenHeight(0), screenWidth(0), temptimet(0), temptimet_last(0), temptm(),
+timeX(0), timeY(0), vbuffer()
 {
 	if (global_pGSS)
 		delete global_pGSS;
@@ -64,7 +67,6 @@ int GeometryScreenSaver::Run()
 	dm.dmSize = sizeof(DEVMODE);
 	EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm);
 	ChangeFullscreenSettings(true);
-	ChangeWindowMode(TRUE);
 
 	// ＤＸライブラリ初期化処理
 	if (DxLib_Init() == -1) return -1;
@@ -262,11 +264,27 @@ public:
 	int x_offset, y_offset,start_x,start_y,to_x, to_y,anim_time_ms,anim_time_ms_cur;
 	RECT rect_start, rect_to, rect;
 private:
-	int hGraph,dw,dh;
+	int hGraph,hGraphOld,dw,dh;
 
 public:
-	DisplayUnit():hGraph(0)
+	DisplayUnit():hGraph(-1),hGraphOld(-1),dw(0),dh(0),x_offset(0),y_offset(0),start_x(0),start_y(0),to_x(0),to_y(0),anim_time_ms(0),
+		anim_time_ms_cur(0),draw_str(),rect_start(),rect_to(),rect()
 	{
+	}
+
+	int TakeGraph()
+	{
+		int t = hGraph;
+		hGraph = -1;
+		return t;
+	}
+
+	void SetGraph(int gr)
+	{
+		if (hGraphOld != -1)//Bug:不知为什么不增设一个Old图像的话图像就被释放了导致无法绘制旧数字图像
+			DeleteGraph(hGraphOld);
+		hGraphOld = hGraph;
+		hGraph = gr;
 	}
 
 	void SetDigit(LPCTSTR str,size_t slen,int color)
@@ -274,7 +292,7 @@ public:
 		if (strncmpDx(draw_str, str,(int)slen) == 0)
 			return;
 		strncpyDx(draw_str, str, slen);
-		if (hGraph)
+		if (hGraph!=-1)
 			ReleaseDigitGraph();
 		MakeDigitGraph(str,slen,color);
 	}
@@ -311,6 +329,7 @@ public:
 	void ReleaseDigitGraph()
 	{
 		DeleteGraph(hGraph);
+		hGraph = -1;
 	}
 
 	void Animate(int delta_time_ms)
@@ -336,7 +355,7 @@ public:
 	}
 	void Draw(int x_base,int y_base)
 	{
-		if (hGraph && rect.bottom > rect.top)
+		if (hGraph != -1 && rect.bottom > rect.top)
 			DrawRectGraph(x_base + x_offset, y_base + y_offset, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, hGraph, TRUE);
 	}
 	int GetGraphWidth()
@@ -386,7 +405,13 @@ struct DigitUnit
 		unit_last.start_x = unit_last.x_offset = 0;
 		unit_last.start_y = unit_last.y_offset = 0;
 		unit_last.rect_start = unit_last.rect = { 0,0,unit_last.GetGraphWidth(),unit_last.GetGraphHeight() };
-		if (y2_offset >= y1_offset)
+		if (anim_time == 0)
+		{
+			//说明是不使用动画
+			unit_last.to_y = unit_last.start_y = 0;
+			unit_last.rect_to = unit_last.rect = { 0,0,0,0 };
+		}
+		else if (y2_offset >= y1_offset)
 		{
 			//说明是在由上向下滑动
 			unit_last.to_y = unit_last.start_y + unit_last.GetGraphHeight();
@@ -399,6 +424,7 @@ struct DigitUnit
 		}
 		unit_last.anim_time_ms = anim_time;
 		unit_last.anim_time_ms_cur = 0;
+		unit_last.SetGraph(unit.TakeGraph());
 		unit.SetDigit(str,slen,color);
 		unit.x_offset = unit.start_x = x1_offset;
 		unit.to_x = x2_offset;
@@ -542,8 +568,8 @@ void GeometryScreenSaver::DrawTrianglePolygon(int cx, int cy, int radius, int ro
 {
 	for (int i = 0; i < num; i++)
 	{
-		vbuffer[i].x = (int)(radius*sin(DegToRad(rot_deg + 360 * i / num)) + cx);
-		vbuffer[i].y = (int)(radius*cos(DegToRad(rot_deg + 360 * i / num)) + cy);
+		vbuffer[i].x = (int)(radius*sin(DegToRad(rot_deg + 360.0 * i / num)) + cx);
+		vbuffer[i].y = (int)(radius*cos(DegToRad(rot_deg + 360.0 * i / num)) + cy);
 	}
 	if (thick)
 		for (int i = 0; i < num; i++)
@@ -1042,7 +1068,7 @@ BOOL GeometryScreenSaver::OpenFileDialog(wchar_t *pstr)
 	lstrcpy(title, GetStringFromResource(IDS_STRING_OPENIMAGE_TITLE));
 	lstrcpy(tempStr, GetStringFromResource(IDS_STRING_OPENIMAGE_FILTER_DESC_IMAGE));
 	int n = lstrlen(tempStr);
-	for (int i = 0; i < sizeof(filter); i++)
+	for (int i = 0; i < ARRAYSIZE(filter); i++)
 		tempStr[n + i] = filter[i];
 	openfile.lStructSize = sizeof(OPENFILENAME);
 	openfile.hwndOwner = hDialog;
