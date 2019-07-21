@@ -42,6 +42,12 @@ public:
 	int randSeed;//设置随机数种子，0=使用当前时间
 	unsigned char timeAlignAnchorX;//时间水平对齐位置，0为左，100为右
 	unsigned char timeAlignAnchorY;//时间垂直对齐位置，0为上，100为下
+	unsigned char timeBorderWidth;//时间边缘宽度，像素
+	UINT timeBorderColor;//时间边缘颜色，0xAABBGGRR
+	int timeShadowDistancePixelsH;//时间阴影水平距离，像素
+	int timeShadowDistancePixelsV;//时间阴影垂直距离，像素
+	unsigned char timeShadowBright;//时间阴影亮度，0～255
+	unsigned char timeShadowAlpha;//时间阴影明度，0～255
 	int digitMovingSpeed;//时间数字的滑动速度，毫秒，正值为向下滑动，负值为向上滑动
 	//设置日期时间的显示格式，分别为是否显示年，日期，时间，秒，星期
 	void SetScrTimeFormat(BOOL, BOOL, BOOL, BOOL, BOOL);

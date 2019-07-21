@@ -40,6 +40,7 @@ public:
 	void OnCommandClearCover();
 	void OnCommandBackgroundUseScreen();
 	void OnCommandCoverUseScreen();
+	void OnCommandTimeBorderColor();
 
 	int CallbackFunction(HWND, UINT, WPARAM, LPARAM);
 private:

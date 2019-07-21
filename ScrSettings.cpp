@@ -89,6 +89,12 @@ void ScrSettings::SaveScrSettingsToFile(wchar_t *filename, wchar_t *appname)
 	WritePrivateProfileString(appname, TEXT(VAR_TO_STRING(timeAlignAnchorX)), ntostr(timeAlignAnchorX, stringbuf), filename);
 	WritePrivateProfileString(appname, TEXT(VAR_TO_STRING(timeAlignAnchorY)), ntostr(timeAlignAnchorY, stringbuf), filename);
 	WritePrivateProfileString(appname, TEXT(VAR_TO_STRING(digitMovingSpeed)), ntostr(digitMovingSpeed, stringbuf), filename);
+	WritePrivateProfileString(appname, TEXT(VAR_TO_STRING(timeBorderWidth)), ntostr(timeBorderWidth, stringbuf), filename);
+	WritePrivateProfileString(appname, TEXT(VAR_TO_STRING(timeBorderColor)), ntostr(timeBorderColor, stringbuf), filename);
+	WritePrivateProfileString(appname, TEXT(VAR_TO_STRING(timeShadowDistancePixelsH)), ntostr(timeShadowDistancePixelsH, stringbuf), filename);
+	WritePrivateProfileString(appname, TEXT(VAR_TO_STRING(timeShadowDistancePixelsV)), ntostr(timeShadowDistancePixelsV, stringbuf), filename);
+	WritePrivateProfileString(appname, TEXT(VAR_TO_STRING(timeShadowBright)), ntostr(timeShadowBright, stringbuf), filename);
+	WritePrivateProfileString(appname, TEXT(VAR_TO_STRING(timeShadowAlpha)), ntostr(timeShadowAlpha, stringbuf), filename);
 }
 
 void ScrSettings::LoadDefaultScrSettings()
@@ -129,6 +135,11 @@ void ScrSettings::LoadDefaultScrSettings()
 	timeAlignAnchorX = 0;
 	timeAlignAnchorY = 0;
 	digitMovingSpeed = 0;
+	timeBorderWidth = 3;
+	timeBorderColor = 0xFF000000;
+	timeShadowDistancePixelsH = timeShadowDistancePixelsV = 0;
+	timeShadowBright = 128;
+	timeShadowAlpha = 128;
 }
 
 void ScrSettings::GetScrSettingsFromFile(wchar_t *filename, wchar_t *appname)
@@ -173,6 +184,12 @@ void ScrSettings::GetScrSettingsFromFile(wchar_t *filename, wchar_t *appname)
 	timeAlignAnchorX = GetPrivateProfileInt(appname, TEXT(VAR_TO_STRING(timeAlignAnchorX)), timeAlignAnchorX, filename);
 	timeAlignAnchorY = GetPrivateProfileInt(appname, TEXT(VAR_TO_STRING(timeAlignAnchorY)), timeAlignAnchorY, filename);
 	digitMovingSpeed = GetPrivateProfileInt(appname, TEXT(VAR_TO_STRING(digitMovingSpeed)), digitMovingSpeed, filename);
+	timeBorderWidth = GetPrivateProfileInt(appname, TEXT(VAR_TO_STRING(timeBorderWidth)), timeBorderWidth, filename);
+	timeBorderColor = GetPrivateProfileInt(appname, TEXT(VAR_TO_STRING(timeBorderColor)), timeBorderColor, filename);
+	timeShadowDistancePixelsH = GetPrivateProfileInt(appname, TEXT(VAR_TO_STRING(timeShadowDistancePixelsH)), timeShadowDistancePixelsH, filename);
+	timeShadowDistancePixelsV = GetPrivateProfileInt(appname, TEXT(VAR_TO_STRING(timeShadowDistancePixelsV)), timeShadowDistancePixelsV, filename);
+	timeShadowBright = GetPrivateProfileInt(appname, TEXT(VAR_TO_STRING(timeShadowBright)), timeShadowBright, filename);
+	timeShadowAlpha = GetPrivateProfileInt(appname, TEXT(VAR_TO_STRING(timeShadowAlpha)), timeShadowAlpha, filename);
 }
 
 wchar_t * ScrSettings::ntostr(int source, wchar_t *buf, bool inhex)

@@ -70,6 +70,51 @@ GeometryScreenSaver::~GeometryScreenSaver()
 	global_pGSS = nullptr;
 }
 
+#define WinColorToDxColor(x) GetColor((x)&0xFF,((x)>>8)&0xFF,((x)>>16)&0xFF)
+
+#include <map>
+
+struct GraphMaps
+{
+	std::map<std::wstring, int>hGraphMaps;
+	void Release()
+	{
+		for (typename std::map<std::wstring, int>::iterator it = hGraphMaps.begin(); it != hGraphMaps.end(); it++)
+			DeleteGraph(it->second);
+	}
+	bool Exists(std::wstring key)
+	{
+		return hGraphMaps.find(key) != hGraphMaps.end();
+	}
+	void MakeDigitGraph(LPCTSTR str, const ScrSettings* st, int* pdw, int* pdh)
+	{
+		int dx, dy, dl;
+		int fh = CreateFontToHandle(st->timeFontName, st->timeFontSize, st->timeFontThickness, DX_FONTTYPE_ANTIALIASING_EDGE,
+			DX_CHARSET_DEFAULT, st->timeBorderWidth);
+		GetDrawStringSizeToHandle(&dx, &dy, &dl, str, strlenDx(str), fh);
+		int lastScreen = GetDrawScreen();
+		SetDrawScreen(MakeScreen(dx, dy, TRUE));
+		SetDrawBlendMode(DX_BLENDMODE_ALPHA, (st->timeColor >> 24) & 0xFF);
+		DrawStringToHandle(0, 0, str, WinColorToDxColor(st->timeColor), fh, WinColorToDxColor(st->timeBorderColor));
+		SetDrawBlendMode(DX_BLENDMODE_ALPHA, 255);
+		int gr = MakeGraph(dx, dy);
+		hGraphMaps.insert(std::make_pair(std::wstring(str), gr));
+		GetDrawScreenGraph(0, 0, dx, dy, gr);
+		DeleteFontToHandle(fh);
+		SetDrawScreen(lastScreen);
+		if (pdw && pdh)
+			GetGraphSize(gr, pdw, pdh);
+	}
+	void GetSize(LPCTSTR str, int* pdw, int* pdh)
+	{
+		GetGraphSize(graphMaps[str], pdw, pdh);
+	}
+	int operator[](std::wstring key)
+	{
+		return hGraphMaps[key];
+	}
+}graphMaps;
+
 int GeometryScreenSaver::Run()
 {
 #ifndef _DEBUG
@@ -99,6 +144,19 @@ int GeometryScreenSaver::Run()
 
 	// 描画先画面を裏画面にする
 	SetDrawScreen(DX_SCREEN_BACK);
+
+	for (int i = 0; i < 10; i++)
+	{
+		sprintfDx(global_stringBuf, TEXT("%d"), i);
+		if (!graphMaps.Exists(global_stringBuf))
+			graphMaps.MakeDigitGraph(global_stringBuf, &settings, NULL, NULL);
+	}
+	for (int id : weekstrindex)
+	{
+		GetStringFromResource(id);
+		if (!graphMaps.Exists(global_stringBuf))
+			graphMaps.MakeDigitGraph(global_stringBuf, &settings, NULL, NULL);
+	}
 
 	while (1)
 	{
@@ -137,6 +195,7 @@ int GeometryScreenSaver::Run()
 	for (int i = (int)shapes.size() - 1; i >= 0; i--)
 		delete shapes[i];
 	shapes.clear();
+	graphMaps.Release();
 
 	// ＤＸライブラリ使用の終了処理
 	DxLib_End();
@@ -288,72 +347,24 @@ public:
 	int x_offset, y_offset,start_x,start_y,to_x, to_y,anim_time_ms,anim_time_ms_cur;
 	RECT rect_start, rect_to, rect;
 private:
-	int hGraph,hGraphOld,dw,dh;
+	int dw,dh;
 
 public:
-	DisplayUnit():hGraph(-1),hGraphOld(-1),dw(0),dh(0),x_offset(0),y_offset(0),start_x(0),start_y(0),to_x(0),to_y(0),anim_time_ms(0),
+	DisplayUnit():dw(0),dh(0),x_offset(0),y_offset(0),start_x(0),start_y(0),to_x(0),to_y(0),anim_time_ms(0),
 		anim_time_ms_cur(0),draw_str(),rect_start(),rect_to(),rect()
 	{
 	}
 
-	int TakeGraph()
-	{
-		int t = hGraph;
-		hGraph = -1;
-		return t;
-	}
-
-	void SetGraph(int gr)
-	{
-		if (hGraphOld != -1)//Bug:不知为什么不增设一个Old图像的话图像就被释放了导致无法绘制旧数字图像
-			DeleteGraph(hGraphOld);
-		hGraphOld = hGraph;
-		hGraph = gr;
-	}
-
-	void SetDigit(LPCTSTR str,size_t slen,int color)
+	void SetDigit(LPCTSTR str,size_t slen, const ScrSettings* st)
 	{
 		if (strncmpDx(draw_str, str,(int)slen) == 0)
 			return;
+		ZeroMemory(draw_str, sizeof draw_str);
 		strncpyDx(draw_str, str, slen);
-		if (hGraph!=-1)
-			ReleaseDigitGraph();
-		MakeDigitGraph(str,slen,color);
-	}
-
-	void MakeDigitGraph(LPCTSTR str,size_t sl,int color)
-	{
-		int dx, dy, dl,hSoftImage;
-		GetDrawStringSize(&dx, &dy, &dl, str, sl);
-		hSoftImage = MakeARGB8ColorSoftImage(dx, dy);
-		ClearRectSoftImage(hSoftImage, 0, 0, dx, dy);
-		rect_start.left = rect_to.left = rect.left = 0;
-		rect_start.right = rect_to.right = rect.right = dx;
-		BltStringSoftImageWithStrLen(0, 0, str,sl, hSoftImage);
-		for (int j = 0; j < dy; j++)
-		{
-			for (int i = 0; i < dx; i++)
-			{
-				int r, g, b, a;
-				GetPixelSoftImage(hSoftImage, i, j, &r, &g, &b, &a);
-				if (r || g || b)
-				{
-					r = color & 0xFF;
-					g = (color >> 8) & 0xFF;
-					b = (color >> 16) & 0xFF;
-					DrawPixelSoftImage(hSoftImage, i, j, r, g, b, a);
-				}
-			}
-		}
-		hGraph = CreateGraphFromSoftImage(hSoftImage);
-		GetGraphSize(hGraph, &dw, &dh);
-		DeleteSoftImage(hSoftImage);
-	}
-
-	void ReleaseDigitGraph()
-	{
-		DeleteGraph(hGraph);
-		hGraph = -1;
+		if (graphMaps.Exists(draw_str))
+			graphMaps.GetSize(draw_str, &dw, &dh);
+		else
+			graphMaps.MakeDigitGraph(draw_str, st, &dw, &dh);
 	}
 
 	void Animate(int delta_time_ms)
@@ -379,8 +390,9 @@ public:
 	}
 	void Draw(int x_base,int y_base)
 	{
-		if (hGraph != -1 && rect.bottom > rect.top)
-			DrawRectGraph(x_base + x_offset, y_base + y_offset, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, hGraph, TRUE);
+		if (graphMaps.Exists(draw_str) && rect.bottom > rect.top)
+			DrawRectGraph(x_base + x_offset, y_base + y_offset, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,
+				graphMaps[draw_str], TRUE);
 	}
 	int GetGraphWidth()
 	{
@@ -421,7 +433,7 @@ struct DigitUnit
 	{
 		return unit.CalcVisibleHeight() + unit_last.CalcVisibleHeight();
 	}
-	void Set(LPCTSTR str,size_t slen,int color,int x1_offset, int y1_offset, int x2_offset, int y2_offset, RECT r1, RECT r2, int anim_time)
+	void Set(LPCTSTR str,size_t slen, const ScrSettings* st,int x1_offset, int y1_offset, int x2_offset, int y2_offset, RECT r1, RECT r2, int anim_time)
 	{
 		if (strncmpDx(unit.draw_str, str, slen) == 0)
 			return;
@@ -448,8 +460,8 @@ struct DigitUnit
 		}
 		unit_last.anim_time_ms = anim_time;
 		unit_last.anim_time_ms_cur = 0;
-		unit_last.SetGraph(unit.TakeGraph());
-		unit.SetDigit(str,slen,color);
+		unit_last.SetDigit(unit.draw_str, strlenDx(unit.draw_str), st);
+		unit.SetDigit(str,slen,st);
 		unit.x_offset = unit.start_x = x1_offset;
 		unit.to_x = x2_offset;
 		unit.y_offset = unit.start_y = y1_offset;
@@ -574,7 +586,17 @@ void GeometryScreenSaver::DrawDateTime()
 	int dx, dy;
 	dx = digitsString.CalcWidth();
 	dy = digitsString.CalcHeight();
+	if (settings.timeShadowDistancePixelsH || settings.timeShadowDistancePixelsV)
+	{
+		SetDrawBlendMode(DX_BLENDMODE_ALPHA, settings.timeShadowAlpha);
+		SetDrawBright(settings.timeShadowBright, settings.timeShadowBright, settings.timeShadowBright);
+		digitsString.Draw(timeX - dx * settings.timeAlignAnchorX / 100 + settings.timeShadowDistancePixelsH,
+			timeY - dy * settings.timeAlignAnchorY / 100 + settings.timeShadowDistancePixelsV);
+		SetDrawBright(255, 255, 255);
+	}
+	SetDrawBlendMode(DX_BLENDMODE_ALPHA, settings.timeColor >> 24);
 	digitsString.Draw(timeX - dx * settings.timeAlignAnchorX / 100, timeY - dy * settings.timeAlignAnchorY / 100);
+	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
 }
 
 void GeometryScreenSaver::SetDigit(LPCTSTR str, size_t slen)
@@ -582,9 +604,9 @@ void GeometryScreenSaver::SetDigit(LPCTSTR str, size_t slen)
 	int dw, dh, dl;
 	GetDrawStringSize(&dw, &dh, &dl, str, slen);
 	if (settings.digitMovingSpeed > 0)//向下滑动
-		digitsString[digit_index].Set(str, slen,settings.timeColor, 0, 0, 0, 0, { 0,dh,dw,dh }, { 0,0, dw ,dh }, settings.digitMovingSpeed);
+		digitsString[digit_index].Set(str, slen,&settings, 0, 0, 0, 0, { 0,dh,dw,dh }, { 0,0, dw ,dh }, settings.digitMovingSpeed);
 	else
-		digitsString[digit_index].Set(str, slen,settings.timeColor, 0, dh, 0, 0, { 0,0,dw,0 }, { 0,0, dw ,dh }, settings.digitMovingSpeed);
+		digitsString[digit_index].Set(str, slen,&settings, 0, dh, 0, 0, { 0,0,dw,0 }, { 0,0, dw ,dh }, settings.digitMovingSpeed);
 	digit_index++;
 }
 
@@ -728,10 +750,16 @@ void GeometryScreenSaver::ConfigureDialogControl()
 	SendMessage(GetDlgItem(hDialog, IDC_SPIN_TIMEANCHORX), UDM_SETRANGE32, 0, 100);
 	SendMessage(GetDlgItem(hDialog, IDC_SPIN_TIMEANCHORY), UDM_SETRANGE32, 0, 100);
 	SendMessage(GetDlgItem(hDialog, IDC_SPIN_DIGITMOVINGSPEED), UDM_SETRANGE32, -10000, 10000);
+	SendMessage(GetDlgItem(hDialog, IDC_SPIN_TIMEBORDERWIDTH), UDM_SETRANGE32, 0, 1000);
+	SendMessage(GetDlgItem(hDialog, IDC_SPIN_TIMESHADOWH), UDM_SETRANGE32, 0, 10000);
+	SendMessage(GetDlgItem(hDialog, IDC_SPIN_TIMESHADOWV), UDM_SETRANGE32, 0, 10000);
+	SendMessage(GetDlgItem(hDialog, IDC_SPIN_TIMESHADOWBRIGHT), UDM_SETRANGE32, 0, 255);
+	SendMessage(GetDlgItem(hDialog, IDC_SPIN_TIMESHADOWALPHA), UDM_SETRANGE32, 0, 255);
 	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_PURECOLORBORDER_ALPHA), TBM_SETRANGE, FALSE, MAKELPARAM(0, 255));
 	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_BACKGROUNDCOLOR_ALPHA), TBM_SETRANGE, FALSE, MAKELPARAM(0, 255));
 	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_TIMECOLOR_ALPHA), TBM_SETRANGE, FALSE, MAKELPARAM(0, 255));
 	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_COVERCOLOR_ALPHA), TBM_SETRANGE, FALSE, MAKELPARAM(0, 255));
+	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_TIMEBORDERCOLOR), TBM_SETRANGE, FALSE, MAKELPARAM(0, 255));
 }
 
 void GeometryScreenSaver::OnShowWindow(HWND hwnd)
@@ -922,6 +950,9 @@ void GeometryScreenSaver::OnSliderCustomDraw(UINT_PTR nID)
 		settings.coverColor = ((UINT)SendMessage(GetDlgItem(hDialog, IDC_SLIDER_COVERCOLOR_ALPHA),
 			TBM_GETPOS, 0, 0) << 24) + (settings.coverColor & 0x00FFFFFF);
 		break;
+	case IDC_SLIDER_TIMEBORDERCOLOR:
+		settings.timeBorderColor = ((UINT)SendMessage(GetDlgItem(hDialog, IDC_SLIDER_TIMEBORDERCOLOR),
+			TBM_GETPOS, 0, 0) << 24) + (settings.timeBorderColor & 0x00FFFFFF);
 	}
 	CopySettingsToDialog();
 }
@@ -944,6 +975,18 @@ void GeometryScreenSaver::OnCommandBackgroundUseScreen()
 void GeometryScreenSaver::OnCommandCoverUseScreen()
 {
 	SetDlgItemText(hDialog, IDC_EDIT_COVERSPLASH, TEXT(KEY_USE_SCREEN));
+}
+
+void GeometryScreenSaver::OnCommandTimeBorderColor()
+{
+	UINT newColor;
+	if (ChooseColorDialog(&newColor, settings.timeBorderColor))
+	{
+		TCHAR stringbuf[32];
+		settings.timeBorderColor = newColor;
+		wsprintf(stringbuf, GetStringFromResource(IDS_STRING_BUTTON_TIMEBORDERCOLOR), settings.timeBorderColor);
+		SetDlgItemText(hDialog, IDC_BUTTON_TIMEBORDERCOLOR, stringbuf);
+	}
 }
 
 int GeometryScreenSaver::CallbackFunction(HWND hW, UINT uM, WPARAM wP, LPARAM lP)
@@ -984,6 +1027,7 @@ int GeometryScreenSaver::CallbackFunction(HWND hW, UINT uM, WPARAM wP, LPARAM lP
 		case IDC_BUTTON_CLEARCOVER:OnCommandClearCover(); break;
 		case IDC_BUTTON_BACKGROUNDUSESCREEN:OnCommandBackgroundUseScreen(); break;
 		case IDC_BUTTON_COVERUSESCREEN:OnCommandCoverUseScreen(); break;
+		case IDC_BUTTON_TIMEBORDERCOLOR:OnCommandTimeBorderColor(); break;
 		}
 		break;
 	case WM_DROPFILES:OnDropFiles((HDROP)wP); break;
@@ -1005,6 +1049,7 @@ int GeometryScreenSaver::CallbackFunction(HWND hW, UINT uM, WPARAM wP, LPARAM lP
 			case IDC_SLIDER_PURECOLORBORDER_ALPHA:
 			case IDC_SLIDER_TIMECOLOR_ALPHA:
 			case IDC_SLIDER_COVERCOLOR_ALPHA:
+			case IDC_SLIDER_TIMEBORDERCOLOR:
 				OnSliderCustomDraw(((NMTRBTHUMBPOSCHANGING*)lP)->hdr.idFrom);
 				break;
 			}
@@ -1057,6 +1102,14 @@ void GeometryScreenSaver::CopySettingsToDialog()
 	SetDlgItemInt(hDialog, IDC_EDIT_TIMEANCHORX, settings.timeAlignAnchorX, FALSE);
 	SetDlgItemInt(hDialog, IDC_EDIT_TIMEANCHORY, settings.timeAlignAnchorY, FALSE);
 	SetDlgItemInt(hDialog, IDC_EDIT_DIGITMOVINGSPEED, settings.digitMovingSpeed, TRUE);
+	SendMessage(GetDlgItem(hDialog, IDC_SLIDER_TIMEBORDERCOLOR), TBM_SETPOS, TRUE, settings.timeBorderColor >> 24);
+	SetDlgItemInt(hDialog, IDC_EDIT_TIMEBORDERWIDTH, settings.timeBorderWidth, FALSE);
+	SetDlgItemInt(hDialog, IDC_EDIT_TIMESHADOWH, settings.timeShadowDistancePixelsH, FALSE);
+	SetDlgItemInt(hDialog, IDC_EDIT_TIMESHADOWV, settings.timeShadowDistancePixelsV, FALSE);
+	SetDlgItemInt(hDialog, IDC_EDIT_TIMESHADOWBRIGHT, settings.timeShadowBright, FALSE);
+	SetDlgItemInt(hDialog, IDC_EDIT_TIMESHADOWALPHA, settings.timeShadowAlpha, FALSE);
+	wsprintf(global_stringBuf, TEXT("#%08X(&T)"), settings.timeBorderColor);
+	SetDlgItemText(hDialog, IDC_BUTTON_TIMEBORDERCOLOR, global_stringBuf);
 }
 
 void GeometryScreenSaver::CopyDialogToSettings()
@@ -1082,6 +1135,11 @@ void GeometryScreenSaver::CopyDialogToSettings()
 	settings.timeAlignAnchorX = GetDlgItemInt(hDialog, IDC_EDIT_TIMEANCHORX, FALSE, FALSE);
 	settings.timeAlignAnchorY = GetDlgItemInt(hDialog, IDC_EDIT_TIMEANCHORY, FALSE, FALSE);
 	settings.digitMovingSpeed = GetDlgItemInt(hDialog, IDC_EDIT_DIGITMOVINGSPEED, FALSE, TRUE);
+	settings.timeBorderWidth = GetDlgItemInt(hDialog, IDC_EDIT_TIMEBORDERWIDTH, FALSE, FALSE);
+	settings.timeShadowDistancePixelsH = GetDlgItemInt(hDialog, IDC_EDIT_TIMESHADOWH, FALSE, TRUE);
+	settings.timeShadowDistancePixelsV = GetDlgItemInt(hDialog, IDC_EDIT_TIMESHADOWV, FALSE, TRUE);
+	settings.timeShadowBright = GetDlgItemInt(hDialog, IDC_EDIT_TIMESHADOWBRIGHT, FALSE, FALSE);
+	settings.timeShadowAlpha = GetDlgItemInt(hDialog, IDC_EDIT_TIMESHADOWALPHA, FALSE, FALSE);
 }
 
 BOOL GeometryScreenSaver::OpenFileDialog(wchar_t *pstr)
