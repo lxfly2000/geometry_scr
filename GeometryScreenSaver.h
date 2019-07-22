@@ -10,8 +10,8 @@ class GeometryScreenSaver
 public:
 	GeometryScreenSaver();
 	~GeometryScreenSaver();
-	int Run();
-	int Settings(HINSTANCE);
+	int Run(HWND hParent);
+	int Settings(HINSTANCE, HWND);
 
 	void SaveSettingsToFile();
 	void LoadSettingsFromFile();

@@ -200,7 +200,7 @@ int LoadGraphFromHBitmap(HBITMAP hBmp)
 	return gh;
 }
 
-int GeometryScreenSaver::Run()
+int GeometryScreenSaver::Run(HWND hParent)
 {
 #ifndef _DEBUG
 	SetOutApplicationLogValidFlag(FALSE);
@@ -220,7 +220,9 @@ int GeometryScreenSaver::Run()
 
 	dm.dmSize = sizeof(DEVMODE);
 	EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm);
-	ChangeFullscreenSettings(true);
+	ChangeFullscreenSettings(hParent == NULL);
+	if (hParent)
+		SetUserWindow(hParent);
 
 	RECT rScreen = { 0,0,(LONG)dm.dmPelsWidth,(LONG)dm.dmPelsHeight };
 	hScreenShot = CopyScrToBitmap(&rScreen);
@@ -264,10 +266,18 @@ int GeometryScreenSaver::Run()
 			OnPressF11();
 			LoadSourceFromFiles();
 		}
-		// £Å£Ó£Ã¥­©`¤¬Ñº¤µ¤ì¤¿¤é¥ë©`¥×¤«¤é’i¤±¤ë
-		if (CheckHitKey(KEY_INPUT_ESCAPE))break;
-		if (GetAsyncKeyState(VK_LBUTTON))break;
-		if (GetAsyncKeyState(VK_RBUTTON))break;
+		if (hParent == NULL)
+		{
+			// £Å£Ó£Ã¥­©`¤¬Ñº¤µ¤ì¤¿¤é¥ë©`¥×¤«¤é’i¤±¤ë
+			if (CheckHitKey(KEY_INPUT_ESCAPE))break;
+			if (GetAsyncKeyState(VK_LBUTTON))break;
+			if (GetAsyncKeyState(VK_RBUTTON))break;
+		}
+		else
+		{
+			if (!IsWindow(hParent))
+				break;
+		}
 
 		// Windows ¥·¥¹¥Æ¥à¤«¤é¤¯¤ëÇéˆó¤ò„IÀí¤¹¤ë
 		if (ProcessMessage() == -1) break;
@@ -786,10 +796,10 @@ void GeometryScreenSaver::ShapesAct()
 		}
 }
 
-int GeometryScreenSaver::Settings(HINSTANCE hInstance)
+int GeometryScreenSaver::Settings(HINSTANCE hInstance, HWND hWnd)
 {
 	LoadSettingsFromFile();
-	if (DialogBox(hInstance, MAKEINTRESOURCE(IDD_DIALOG_SETTINGS), NULL, DialogCallback) == IDOK)
+	if (DialogBox(hInstance, MAKEINTRESOURCE(IDD_DIALOG_SETTINGS), hWnd, DialogCallback) == IDOK)
 		SaveSettingsToFile();
 	return 0;
 }
