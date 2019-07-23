@@ -202,6 +202,8 @@ int LoadGraphFromHBitmap(HBITMAP hBmp)
 
 int GeometryScreenSaver::Run(HWND hParent)
 {
+	if (hParent)
+		return 0;
 #ifndef _DEBUG
 	SetOutApplicationLogValidFlag(FALSE);
 #endif
@@ -220,9 +222,7 @@ int GeometryScreenSaver::Run(HWND hParent)
 
 	dm.dmSize = sizeof(DEVMODE);
 	EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm);
-	ChangeFullscreenSettings(hParent == NULL);
-	if (hParent)
-		SetUserWindow(hParent);
+	ChangeFullscreenSettings(true);
 
 	RECT rScreen = { 0,0,(LONG)dm.dmPelsWidth,(LONG)dm.dmPelsHeight };
 	hScreenShot = CopyScrToBitmap(&rScreen);
@@ -250,35 +250,6 @@ int GeometryScreenSaver::Run(HWND hParent)
 
 	while (1)
 	{
-		// x , y が示す画面座標にＢＭＰ画像 test1.bmp を描画する
-		DrawBackgroundSplash();
-		if (settings.enableCoverLayer)
-			DrawCoverLayer();
-		else
-			DrawShapes(false);
-		DrawDateTime();
-
-		// 裏画面の内容を表画面に反映させる
-		ScreenFlip();
-
-		// 上下左右のキー入力に対応して x, y の座標値を変更する
-		if (CheckHitKey(KEY_INPUT_F11)) {
-			OnPressF11();
-			LoadSourceFromFiles();
-		}
-		if (hParent == NULL)
-		{
-			// ＥＳＣキーが押されたらループから抜ける
-			if (CheckHitKey(KEY_INPUT_ESCAPE))break;
-			if (GetAsyncKeyState(VK_LBUTTON))break;
-			if (GetAsyncKeyState(VK_RBUTTON))break;
-		}
-		else
-		{
-			if (!IsWindow(hParent))
-				break;
-		}
-
 		// Windows システムからくる情報を処理する
 		if (ProcessMessage() == -1) break;
 
@@ -288,7 +259,28 @@ int GeometryScreenSaver::Run(HWND hParent)
 		// 待たないと処理が早すぎるのでここで２０ミリ秒待つ
 		//WaitTimer(200);
 
+			// x , y が示す画面座標にＢＭＰ画像 test1.bmp を描画する
+		DrawBackgroundSplash();
+		if (settings.enableCoverLayer)
+			DrawCoverLayer();
+		else
+			DrawShapes(false);
+		DrawDateTime();
+
 		ShapesAct();
+
+		// 上下左右のキー入力に対応して x, y の座標値を変更する
+		if (CheckHitKey(KEY_INPUT_F11)) {
+			OnPressF11();
+			LoadSourceFromFiles();
+		}
+		// ＥＳＣキーが押されたらループから抜ける
+		if (CheckHitKey(KEY_INPUT_ESCAPE))break;
+		if (GetAsyncKeyState(VK_LBUTTON))break;
+		if (GetAsyncKeyState(VK_RBUTTON))break;
+
+		// 裏画面の内容を表画面に反映させる
+		ScreenFlip();
 	}
 	for (int i = (int)shapes.size() - 1; i >= 0; i--)
 		delete shapes[i];
